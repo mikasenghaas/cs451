@@ -1,0 +1,13 @@
+[user]
+  name = Mika Senghaas
+  email = mail@mikasenghaas.de
+  signingkey = ~/.ssh/github-personal
+
+[commit]
+	gpgsign = true
+
+[gpg]
+	format = ssh
+
+[credential]
+	helper = store
