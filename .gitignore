@@ -9,6 +9,7 @@ target/
 # Custom
 example/output/*.log
 example/output/*.output
+.vscode
 
 ### C ###
 # Prerequisites
