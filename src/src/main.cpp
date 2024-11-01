@@ -7,6 +7,8 @@
 #include "perfect_link.hpp"
 #include <signal.h>
 
+// Add global variable to access link from signal handler
+static PerfectLink* globalLink = nullptr;
 
 static void stop(int) {
   // Reset signal handlers to default
@@ -14,10 +16,16 @@ static void stop(int) {
   signal(SIGINT, SIG_DFL);
 
   // Immediately stop network packet processing
-  std::cout << "Immediately stopping network packet processing.\n";
+  if (globalLink != nullptr) {
+    std::cout << "\nImmediately stopping network packet processing.\n";
+    // TODO: Figure out how to immediately stop network packet processing, but not deconstruct the whole object
+  }
 
   // Write/flush output file if necessary
-  std::cout << "Writing output.\n";
+  if (globalLink != nullptr) {
+    std::cout << "\nWriting output.\n";
+    globalLink->write_output();
+  }
 
   // Exit directly from signal handler
   exit(0);
@@ -68,55 +76,51 @@ int main(int argc, char **argv) {
   std::string config_path = parser.configPath();
   std::ifstream config_file(config_path);
   size_t num_messages; // TODO: Check what type max messages is
-  unsigned long receiver_id;
-  config_file >> num_messages >> receiver_id;
+  unsigned long send_id;
+  unsigned long recv_id;
+  config_file >> num_messages >> recv_id;
+  send_id = parser.id();
 
   std::cout << "Number of messages to send: " << num_messages << "\n";
-  std::cout << "Receiver ID: " << receiver_id << "\n\n";
-
-  // Setup address
-  struct sockaddr_in local_addr; // Local address
-  struct sockaddr_in recv_addr; // Receiver address
+  std::cout << "Sender ID: " << send_id << "\n";
+  std::cout << "Receiver ID: " << recv_id << "\n\n";
 
   // Setup local address
-  Parser::Host local = parser.hosts()[parser.id()-1];
+  struct sockaddr_in local_addr; // Local address
+  Parser::Host local = parser.hosts()[send_id - 1];
   get_addr(local.ipReadable(), local.portReadable(), local_addr);
 
-  // Setup receiver address as last host
-  Parser::Host receiver = parser.hosts()[parser.hosts().size()-1];
+  // Setup receiver address
+  struct sockaddr_in recv_addr; // Receiver address
+  Parser::Host receiver = parser.hosts()[recv_id - 1];
   get_addr(receiver.ipReadable(), receiver.portReadable(), recv_addr);
 
-  // Check if this is the receiver
-  bool is_receiver = parser.id() == receiver_id;
-
-  // Setup stubborn link
-  std::cout << "Setting up " << (is_receiver ? "receiving" : "sending") << " stubborn link with local address " << local.ipReadable() << ":" << local.portReadable() << "\n\n";
-  PerfectLink link(local_addr);
+  // Setup perfect link
+  LinkType type = send_id == recv_id ? RECEIVER : SENDER;
+  PerfectLink link(type, local_addr);
+  globalLink = &link;  // Store pointer to link for signal handler
+  std::cout << "Set up " << (type == RECEIVER ? "receiving" : "sending") << " socket at " << local.ipReadable() << ":" << local.portReadable() << "\n\n";
 
   std::cout << "Broadcasting and delivering messages...\n\n";
 
-  if (is_receiver) {
-    std::cout << "Receiving message on " << local.ipReadable() << ":" << local.portReadable() << "\n";
-    // Setup buffer with fixed size
-    PerfectLink::Message msg = link.receive();
-    std::cout << "Received message: " << msg.data << "\n";
-  } else {
+  // Send or receive messages
+  if (type == SENDER) {
     for (size_t message = 1; message <= num_messages; message++) {
-      std::cout << "Sending message " << message << " to " << inet_ntoa(recv_addr.sin_addr) << "\n";
-      PerfectLink::Message msg {
-        std::to_string(message),
-        recv_addr
-      };
-      link.send(msg);
+
+      // TODO: Use utils
+      uint8_t* bytes = new uint8_t[sizeof(message)];
+      memcpy(bytes, &message, sizeof(message));
+      Message msg { bytes, sizeof(message), send_id, recv_id };
+      link.send(msg, recv_addr);
     }
+  } else {
+    link.receive();
   }
 
   // After a process finishes sending, it waits forever for the delivery of messages.
   while (true) {
     std::this_thread::sleep_for(std::chrono::hours(1));
   }
-
-  std::cout << "Exiting.\n";
 
   return 0;
 }

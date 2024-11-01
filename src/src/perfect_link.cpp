@@ -1,4 +1,5 @@
 #include "perfect_link.hpp"
+#include "utils.hpp"
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -8,74 +9,98 @@
 #include <cstring>
 #include <iostream>
 
-PerfectLink::PerfectLink(const struct sockaddr_in &local_addr): local_addr{local_addr} {
+PerfectLink::PerfectLink(LinkType type, const struct sockaddr_in &local_addr): type{type}, local_addr{local_addr} {
     // Create UDP socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         throw std::runtime_error("Failed to create socket");
     }
+
+    // Bind socket to local address
+    const struct sockaddr* local_addr_ptr = reinterpret_cast<const struct sockaddr*>(&local_addr);
+    if (bind(sockfd, local_addr_ptr, sizeof(local_addr)) < 0) {
+        close(sockfd);
+        throw std::runtime_error(std::string("Failed to bind socket: ") + strerror(errno));
+    }
 }
 
 PerfectLink::~PerfectLink() {
+    // Clear output
+    for (auto& msg : output) {
+        delete[] msg.payload;
+    }
+    output.clear();
+
+    // Clear socket
     if (sockfd >= 0) {
         close(sockfd);
     }
 }
 
-void PerfectLink::send(const PerfectLink::Message &msg) {
-    // Setup message
-    const char* data = msg.data.c_str();
-    size_t data_len = strlen(data);
-    int flags = 0;
-    const struct sockaddr* recv_addr_ptr = reinterpret_cast<const struct sockaddr*>(&msg.addr);
-    socklen_t recv_addr_len = sizeof(msg.addr);
-
-    // Send message
-    ssize_t sent = sendto(sockfd, data, data_len, flags, recv_addr_ptr, recv_addr_len);
+void PerfectLink::send(const Message &msg, const struct sockaddr_in &recv_addr) {
+    char buffer[BUFFER_SIZE];
+    msg.serialize(buffer);
     
-    // Check if message was sent successfully
+    ssize_t sent = sendto(sockfd, buffer, msg.serialized_size(), 0, 
+                         reinterpret_cast<const struct sockaddr*>(&recv_addr), 
+                         sizeof(recv_addr));
     if (sent < 0) {
         throw std::runtime_error("Failed to send data");
-    } 
+    }
+    Message msg_copy = msg;
+    msg_copy.payload = new uint8_t[msg.payload_size];
+    memcpy(msg_copy.payload, msg.payload, msg.payload_size);
+    output.push_back(msg_copy);
 }
 
-PerfectLink::Message PerfectLink::receive() {
-    // Setup buffer
-    const size_t buffer_size = 1024;
-    unsigned char *buffer = new unsigned char[buffer_size];
-    
-    // Setup sender address
+void PerfectLink::receive() {
+    char buffer[BUFFER_SIZE];
     struct sockaddr_in sender_addr;
     socklen_t sender_addr_len = sizeof(sender_addr);
 
-    // Bind socket if not already bound
-    int bound = bind(sockfd, reinterpret_cast<struct sockaddr*>(&local_addr), sizeof(local_addr));
-    if (bound < 0) {
-        delete[] buffer;
-        throw std::runtime_error("Failed to bind receiving socket");
-    }
+    while (true) {
+        // Set up for select()
+        fd_set readfds;
+        struct timeval tv;
+        
+        // Initialize the file descriptor set
+        FD_ZERO(&readfds);
+        FD_SET(sockfd, &readfds);
+        tv.tv_sec = 0;
+        tv.tv_usec = 0;
 
-    // Receive message
-    ssize_t recv_len = recvfrom(sockfd, buffer, buffer_size - 1, 0,
-                               reinterpret_cast<struct sockaddr*>(&sender_addr),
-                               &sender_addr_len);
-    
-    if (recv_len < 0) {
-        delete[] buffer;
-        throw std::runtime_error("Failed to receive data");
+        // Check if there's data to read
+        int ready = select(sockfd + 1, &readfds, nullptr, nullptr, &tv);
+        
+        if (ready > 0 && FD_ISSET(sockfd, &readfds)) {
+            ssize_t bytes_received = recvfrom(sockfd, buffer, BUFFER_SIZE, 0,
+                reinterpret_cast<struct sockaddr*>(&sender_addr), &sender_addr_len);
+            
+            if (bytes_received > 0) {
+                Message msg;
+                msg.deserialize(buffer);
+                Message msg_copy = msg;
+                msg_copy.payload = new uint8_t[msg.payload_size];
+                memcpy(msg_copy.payload, msg.payload, msg.payload_size);
+                output.push_back(msg_copy);
+            }
+        }
     }
+}
 
-    // Null terminate the received data
-    buffer[recv_len] = '\0';
-    
-    // Construct message with received data and sender address
-    Message msg{
-        std::string(reinterpret_cast<char*>(buffer)),
-        sender_addr
-    };
-    
-    // Clean up
-    delete[] buffer;
-              
-    return msg;
+void PerfectLink::write_output() {
+    std::cout << "Output size: " << output.size() << std::endl;
+    std::cout.flush();
+
+    for (const auto& msg : output) {
+        // TODO: Don't assume type
+        size_t message;
+        memcpy(&message, msg.payload, msg.payload_size);
+        if (type == SENDER) {
+            std::cout << "b " << message << std::endl;
+        } else {
+            std::cout << "d " << msg.send_id << " " << message << std::endl;
+        }
+        std::cout.flush();
+    }
 }
