@@ -8,8 +8,9 @@
 #include <stdexcept>
 #include <cstring>
 #include <iostream>
+#include <fstream>
 
-PerfectLink::PerfectLink(LinkType type, const struct sockaddr_in &local_addr): type{type}, local_addr{local_addr} {
+PerfectLink::PerfectLink(LinkType type, const char* output_path, const struct sockaddr_in &local_addr): type{type}, local_addr{local_addr}, output_path{output_path} {
     // Create UDP socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
@@ -89,18 +90,24 @@ void PerfectLink::receive() {
 }
 
 void PerfectLink::write_output() {
-    std::cout << "Output size: " << output.size() << std::endl;
-    std::cout.flush();
+    // Open output file
+    std::ofstream outfile(output_path);
+    if (!outfile.is_open()) {
+        throw std::runtime_error("Failed to open output file");
+    }
 
+    // Write each message to the output file
     for (const auto& msg : output) {
         // TODO: Don't assume type
         size_t message;
         memcpy(&message, msg.payload, msg.payload_size);
         if (type == SENDER) {
-            std::cout << "b " << message << std::endl;
+            outfile << "b " << message << std::endl;
         } else {
-            std::cout << "d " << msg.send_id << " " << message << std::endl;
+            outfile << "d " << msg.send_id << " " << message << std::endl;
         }
-        std::cout.flush();
     }
+
+    // Close output file
+    outfile.close();
 }

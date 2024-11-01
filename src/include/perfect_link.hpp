@@ -17,9 +17,6 @@ struct Message {
   size_t send_id;
   size_t recv_id;
 
-  // ~Message() {
-  //   delete[] payload;
-  // }
 
   // Get the total size needed for serialization
   size_t serialized_size() const {
@@ -63,9 +60,10 @@ private:
   struct sockaddr_in local_addr; // Local address
   std::vector<Message> output = {}; // Send/ Received messages
   static constexpr size_t BUFFER_SIZE = 65536; // Buffer size
+  const char* output_path; // Output path
 
 public:
-  PerfectLink(LinkType type, const struct sockaddr_in &local_addr);
+  PerfectLink(LinkType type, const char* output_path, const struct sockaddr_in &local_addr);
   ~PerfectLink();
   
   void send(const Message &msg, const struct sockaddr_in &recv_addr);

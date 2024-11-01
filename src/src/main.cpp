@@ -97,7 +97,7 @@ int main(int argc, char **argv) {
 
   // Setup perfect link
   LinkType type = send_id == recv_id ? RECEIVER : SENDER;
-  PerfectLink link(type, local_addr);
+  PerfectLink link(type, parser.outputPath(), local_addr);
   globalLink = &link;  // Store pointer to link for signal handler
   std::cout << "Set up " << (type == RECEIVER ? "receiving" : "sending") << " socket at " << local.ipReadable() << ":" << local.portReadable() << "\n\n";
 
