@@ -1,3 +1,4 @@
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -8,23 +9,26 @@
 #include <signal.h>
 
 // Add global variable to access link from signal handler
-static PerfectLink* globalLink = nullptr;
+static std::atomic<bool> should_stop{false};
+static PerfectLink* global_link = nullptr;
 
 static void stop(int) {
   // Reset signal handlers to default
   signal(SIGTERM, SIG_DFL);
   signal(SIGINT, SIG_DFL);
 
+  should_stop = true;
+
   // Immediately stop network packet processing
-  if (globalLink != nullptr) {
-    std::cout << "\nImmediately stopping network packet processing.\n";
-    // TODO: Figure out how to immediately stop network packet processing, but not deconstruct the whole object
+  if (global_link != nullptr) {
+    std::cout << "Immediately stopping network packet processing.\n";
+    global_link->stop();
   }
 
   // Write/flush output file if necessary
-  if (globalLink != nullptr) {
-    std::cout << "\nWriting output.\n";
-    globalLink->write_output();
+  if (global_link != nullptr) {
+    std::cout << "Writing output.\n";
+    global_link->write_output();
   }
 
   // Exit directly from signal handler
@@ -76,10 +80,12 @@ int main(int argc, char **argv) {
   std::string config_path = parser.configPath();
   std::ifstream config_file(config_path);
   size_t num_messages; // TODO: Check what type max messages is
-  unsigned long send_id;
-  unsigned long recv_id;
+  size_t send_id;
+  size_t recv_id;
   config_file >> num_messages >> recv_id;
   send_id = parser.id();
+
+  config_file.close();  // Close after successful read
 
   std::cout << "Number of messages to send: " << num_messages << "\n";
   std::cout << "Sender ID: " << send_id << "\n";
@@ -98,27 +104,27 @@ int main(int argc, char **argv) {
   // Setup perfect link
   LinkType type = send_id == recv_id ? RECEIVER : SENDER;
   PerfectLink link(type, parser.outputPath(), local_addr);
-  globalLink = &link;  // Store pointer to link for signal handler
+  global_link = &link;  // Store pointer to link for signal handler
   std::cout << "Set up " << (type == RECEIVER ? "receiving" : "sending") << " socket at " << local.ipReadable() << ":" << local.portReadable() << "\n\n";
 
   std::cout << "Broadcasting and delivering messages...\n\n";
 
   // Send or receive messages
   if (type == SENDER) {
-    for (size_t message = 1; message <= num_messages; message++) {
-
-      // TODO: Use utils
+    for (size_t message = 1; message <= num_messages && !should_stop; message++) {
       uint8_t* bytes = new uint8_t[sizeof(message)];
       memcpy(bytes, &message, sizeof(message));
       Message msg { bytes, sizeof(message), send_id, recv_id };
       link.send(msg, recv_addr);
     }
   } else {
-    link.receive();
+    while (!should_stop) {
+      link.receive();
+    }
   }
 
-  // After a process finishes sending, it waits forever for the delivery of messages.
-  while (true) {
+  // Replace infinite loop with a check for shouldStop
+  while (!should_stop) {
     std::this_thread::sleep_for(std::chrono::hours(1));
   }
 

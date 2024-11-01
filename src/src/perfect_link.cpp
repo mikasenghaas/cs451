@@ -26,13 +26,17 @@ PerfectLink::PerfectLink(LinkType type, const char* output_path, const struct so
 }
 
 PerfectLink::~PerfectLink() {
+    // Close socket
+    stop();
+
     // Clear output
     for (auto& msg : output) {
         delete[] msg.payload;
     }
     output.clear();
+}
 
-    // Clear socket
+void PerfectLink::stop() {
     if (sockfd >= 0) {
         close(sockfd);
     }

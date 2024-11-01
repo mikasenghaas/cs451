@@ -66,6 +66,7 @@ public:
   PerfectLink(LinkType type, const char* output_path, const struct sockaddr_in &local_addr);
   ~PerfectLink();
   
+  void stop();
   void send(const Message &msg, const struct sockaddr_in &recv_addr);
   void receive();
   void write_output();
