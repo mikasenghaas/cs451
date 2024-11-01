@@ -9,9 +9,13 @@ rm -f example/output/*.output 2>/dev/null
 rm -f example/output/*.log 2>/dev/null
 rm -f example/output/log 2>/dev/null
 
-# Read config
-num_processes=$(cat example/configs/perfect-links.config | cut -d ' ' -f2)
+# Read hosts
+num_processes=$(cat example/hosts | wc -l)
 echo "Number of processes: $num_processes" >> $log_file 
+
+# Read config
+receiver_id=$(cat example/configs/perfect-links.config | cut -d ' ' -f2)
+echo "Receiver ID: $receiver_id" >> $log_file 
 
 # Store PIDs for cleanup
 pids=()
