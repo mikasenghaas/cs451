@@ -1,14 +1,13 @@
 #include "perfect_link.hpp"
-#include "utils.hpp"
 
 #include <arpa/inet.h>
+#include <cstring>
+#include <fstream>
+#include <iostream>
 #include <netdb.h>
+#include <stdexcept>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <stdexcept>
-#include <cstring>
-#include <iostream>
-#include <fstream>
 
 PerfectLink::PerfectLink(LinkType type, const char* output_path, const struct sockaddr_in &local_addr): type{type}, local_addr{local_addr}, output_path{output_path} {
     // Create UDP socket

@@ -1,14 +1,23 @@
+// C++ standard library headers
 #include <atomic>
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <string>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <cstring>
+#include <stdexcept>
+#include <netdb.h>
 
-#include "parser.hpp"
-#include "utils.hpp"
-#include "perfect_link.hpp"
+// C system headers
 #include <signal.h>
 
-// Add global variable to access link from signal handler
+// Project headers
+#include "parser.hpp"
+#include "perfect_link.hpp"
+
+// Globals
 static std::atomic<bool> should_stop{false};
 static PerfectLink* global_link = nullptr;
 
@@ -33,6 +42,23 @@ static void stop(int) {
 
   // Exit directly from signal handler
   exit(0);
+}
+
+static void get_addr(const std::string &ip_or_hostname, unsigned short port, struct sockaddr_in &addr) {
+    // Clear address structure
+    std::memset(&addr, 0, sizeof(addr));
+
+    // Setup server address structure
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+
+    // Convert hostname to IP address
+    struct hostent *host = gethostbyname(ip_or_hostname.c_str());
+    if (host == nullptr) {
+        throw std::runtime_error("Failed to resolve hostname");
+    }
+
+    std::memcpy(&addr.sin_addr, host->h_addr, host->h_length);
 }
 
 int main(int argc, char **argv) {
