@@ -1,7 +1,8 @@
 #pragma once
 
 // Link type for PerfectLink
-enum LinkType {
+enum LinkType
+{
   SENDER,
   RECEIVER
 };

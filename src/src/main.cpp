@@ -19,9 +19,10 @@
 
 // Globals
 static std::atomic<bool> should_stop{false};
-static PerfectLink* global_link = nullptr;
+static PerfectLink *global_link = nullptr;
 
-static void stop(int) {
+static void stop(int)
+{
   // Reset signal handlers to default
   signal(SIGTERM, SIG_DFL);
   signal(SIGINT, SIG_DFL);
@@ -29,13 +30,15 @@ static void stop(int) {
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_link != nullptr) {
+  if (global_link != nullptr)
+  {
     std::cout << "Immediately stopping network packet processing.\n";
     global_link->stop();
   }
 
   // Write/flush output file if necessary
-  if (global_link != nullptr) {
+  if (global_link != nullptr)
+  {
     std::cout << "Writing output.\n";
     global_link->write_output();
   }
@@ -44,24 +47,27 @@ static void stop(int) {
   exit(0);
 }
 
-static void get_addr(const std::string &ip_or_hostname, unsigned short port, struct sockaddr_in &addr) {
-    // Clear address structure
-    std::memset(&addr, 0, sizeof(addr));
+static void get_addr(const std::string &ip_or_hostname, unsigned short port, struct sockaddr_in &addr)
+{
+  // Clear address structure
+  std::memset(&addr, 0, sizeof(addr));
 
-    // Setup server address structure
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(port);
+  // Setup server address structure
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
 
-    // Convert hostname to IP address
-    struct hostent *host = gethostbyname(ip_or_hostname.c_str());
-    if (host == nullptr) {
-        throw std::runtime_error("Failed to resolve hostname");
-    }
+  // Convert hostname to IP address
+  struct hostent *host = gethostbyname(ip_or_hostname.c_str());
+  if (host == nullptr)
+  {
+    throw std::runtime_error("Failed to resolve hostname");
+  }
 
-    std::memcpy(&addr.sin_addr, host->h_addr, host->h_length);
+  std::memcpy(&addr.sin_addr, host->h_addr, host->h_length);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
   // Set up signal handlers
   signal(SIGTERM, stop);
   signal(SIGINT, stop);
@@ -82,7 +88,8 @@ int main(int argc, char **argv) {
   std::cout << "List of resolved hosts is:\n";
   std::cout << "==========================\n";
   auto hosts = parser.hosts();
-  for (auto &host : hosts) {
+  for (auto &host : hosts)
+  {
     std::cout << host.id << "\n";
     std::cout << "Human-readable IP: " << host.ipReadable() << "\n";
     std::cout << "Machine-readable IP: " << host.ip << "\n";
@@ -111,7 +118,7 @@ int main(int argc, char **argv) {
   config_file >> num_messages >> recv_id;
   send_id = parser.id();
 
-  config_file.close();  // Close after successful read
+  config_file.close(); // Close after successful read
 
   std::cout << "Number of messages to send: " << num_messages << "\n";
   std::cout << "Sender ID: " << send_id << "\n";
@@ -130,27 +137,33 @@ int main(int argc, char **argv) {
   // Setup perfect link
   LinkType type = send_id == recv_id ? RECEIVER : SENDER;
   PerfectLink link(type, parser.outputPath(), local_addr);
-  global_link = &link;  // Store pointer to link for signal handler
+  global_link = &link; // Store pointer to link for signal handler
   std::cout << "Set up " << (type == RECEIVER ? "receiving" : "sending") << " socket at " << local.ipReadable() << ":" << local.portReadable() << "\n\n";
 
   std::cout << "Broadcasting and delivering messages...\n\n";
 
   // Send or receive messages
-  if (type == SENDER) {
-    for (size_t message = 1; message <= num_messages && !should_stop; message++) {
-      uint8_t* bytes = new uint8_t[sizeof(message)];
+  if (type == SENDER)
+  {
+    for (size_t message = 1; message <= num_messages && !should_stop; message++)
+    {
+      uint8_t *bytes = new uint8_t[sizeof(message)];
       memcpy(bytes, &message, sizeof(message));
-      Message msg { bytes, sizeof(message), send_id, recv_id };
+      Message msg{bytes, sizeof(message), send_id, recv_id};
       link.send(msg, recv_addr);
     }
-  } else {
-    while (!should_stop) {
+  }
+  else
+  {
+    while (!should_stop)
+    {
       link.receive();
     }
   }
 
   // Replace infinite loop with a check for shouldStop
-  while (!should_stop) {
+  while (!should_stop)
+  {
     std::this_thread::sleep_for(std::chrono::hours(1));
   }
 

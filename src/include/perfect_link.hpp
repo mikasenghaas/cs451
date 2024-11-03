@@ -17,17 +17,18 @@
  *
  * Send and receive messages over a network reliably.
  */
-class PerfectLink {
+class PerfectLink
+{
 private:
-  LinkType type; // Link type (SENDER or RECEIVER)
-  int sockfd; // Socket file descriptor
-  struct sockaddr_in local_addr; // Local address
-  std::vector<Message> output = {}; // Sent/ Received messages
+  LinkType type;                               // Link type (SENDER or RECEIVER)
+  int sockfd;                                  // Socket file descriptor
+  struct sockaddr_in local_addr;               // Local address
+  std::vector<Message> output = {};            // Sent/ Received messages
   static constexpr size_t BUFFER_SIZE = 65536; // Buffer size
-  const char* output_path; // Output path
+  const char *output_path;                     // Output path
 
 public:
-  PerfectLink(LinkType type, const char* output_path, const struct sockaddr_in &local_addr);
+  PerfectLink(LinkType type, const char *output_path, const struct sockaddr_in &local_addr);
   ~PerfectLink();
 
   void stop();
