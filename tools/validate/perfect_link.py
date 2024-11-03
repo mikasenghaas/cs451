@@ -38,7 +38,7 @@ def main():
     receiver_id = num_processes
 
     msg = f"Output files for all processes must exist"
-    assert all(os.path.exists(os.path.join(output_dir, f"{i}.output")) for i in range(1, num_processes + 1)),ms
+    assert all(os.path.exists(os.path.join(output_dir, f"{i}.output")) for i in range(1, num_processes + 1)), msg
 
     # Open output files for each process
     for process_id in range(1, num_processes + 1):
