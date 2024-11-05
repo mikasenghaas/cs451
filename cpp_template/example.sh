@@ -1,8 +1,11 @@
 #!/bin/bash
 
+# Change the current working directory to the location of the present file
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )" 
+
 # Build the application
-log_file="example/output/example.log"
-bash build.sh >> $log_file
+log_file="example/output/example.stdout"
+bash $DIR/build.sh >> $log_file
 
 # Remove previous outputs
 rm -f example/output/*.output 2>/dev/null
@@ -22,14 +25,14 @@ pids=()
 
 # Start processes
 for i in $(seq $num_processes -1 1); do
-    bin/da_proc --id $i --hosts example/hosts --output example/output/$i.output example/configs/perfect-links.config > example/output/$i.log &
+    $DIR/bin/da_proc --id $i --hosts example/hosts --output example/output/proc$(printf "%02d" $i).output example/configs/perfect-links.config > example/output/proc$(printf "%02d" $i).stdout &
     pids+=($!)
 done
 echo "PIDs: ${pids[@]}" >> $log_file
 
-# Wait for specified duration
-echo "Waiting for timeout" >> $log_file
-sleep 1
+# Wait for until ENTER is pressed
+echo "Press Enter when all processes have finished processing messages."
+read -n 1 -s
 
 echo "Sending SIGINT to all processes" >> $log_file
 # Send SIGINT to all processes
@@ -40,4 +43,4 @@ done
 echo "Done" >> $log_file
 
 # Validate the output files
-python tools/validate/perfect_link.py example/configs/perfect-links.config example/output
+python tools/validate/perfect_link.py example/configs/perfect-links.config example/hosts example/output

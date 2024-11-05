@@ -37,12 +37,10 @@ private:
 public:
   const Host host;
 
-  FairLossLink(Host host)
-      : host(host)
+  FairLossLink(Host host) : host(host)
   {
     // Create socket
     this->sockfd = create_socket();
-    std::cout << "Initialized FairLossLink for Host ID " << " on address: " << host.get_address().to_string() << std::endl;
   }
 
   void send(const Message &message)

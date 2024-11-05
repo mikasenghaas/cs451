@@ -17,15 +17,17 @@ def check_receiver(outputs: List[str], id: int, n: int):
             assert msg in all_outputs, f"Validation failed for receiver with id={id}: {msg} not received"
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python perfect_link.py <config_file> <output_dir>")
+    if len(sys.argv) != 4:
+        print("Usage: python perfect_link.py <config_file> <host_file> <output_dir>")
         sys.exit(1)
 
     # Read arguments
     config_file = sys.argv[1]
-    output_dir = sys.argv[2]
+    host_file = sys.argv[2]
+    output_dir = sys.argv[3]
 
     assert os.path.exists(config_file), f"Config file {config_file} does not exist"
+    assert os.path.exists(host_file), f"Host file {host_file} does not exist"
     assert os.path.exists(output_dir), f"Output directory {output_dir} does not exist"
 
     # Open config file
@@ -33,21 +35,27 @@ def main():
         config = f.read()
 
     # Parse config
-    num_messages = int(config.split()[0])
-    num_processes = int(config.split()[1])
-    receiver_id = num_processes
+    message_count = int(config.split()[0])
+    receiver_id = int(config.split()[1])
+
+    # Host file
+    with open(host_file, "r") as f:
+        hosts = f.readlines()
+
+    num_hosts = len(hosts)
 
     msg = f"Output files for all processes must exist"
-    assert all(os.path.exists(os.path.join(output_dir, f"{i}.output")) for i in range(1, num_processes + 1)), msg
+
+    assert all(os.path.exists(os.path.join(output_dir, f"proc{i:02d}.output")) for i in range(1, num_hosts + 1)), msg
 
     # Open output files for each process
-    for process_id in range(1, num_processes + 1):
-        with open(os.path.join(output_dir, f"{process_id}.output"), "r") as f:
+    for process_id in range(1, num_hosts + 1):
+        with open(os.path.join(output_dir, f"proc{process_id:02d}.output"), "r") as f:
             outputs = list(map(str.strip, f.readlines()))
             if process_id == receiver_id:
-                check_receiver(outputs, process_id, num_messages)
+                check_receiver(outputs, process_id, message_count)
             else:
-                check_sender(outputs, process_id, num_messages)
+                check_sender(outputs, process_id, message_count)
 
     print("Perfect link validation passed ✅")
 

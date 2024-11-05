@@ -20,11 +20,11 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "fair_loss_link.hpp"
+#include "perfect_link.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static FairLossLink *global_link = nullptr;
+static PerfectLink *global_link = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -40,7 +40,7 @@ static void stop(int)
   if (global_link != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_link->stop_receiving();
+    global_link->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -129,9 +129,9 @@ int main(int argc, char **argv)
   std::cout << "Receiver address: " << receiver_host.get_address().to_string() << "\n\n";
 
   // Setup fair loss link
-  FairLossLink link(local_host);
-  global_link = &link;
-  std::cout << "Set up fair loss link at " << local_host.get_address().to_string() << "\n\n";
+  PerfectLink pl(local_host, hosts);
+  global_link = &pl;
+  std::cout << "Set up perfect link at " << local_host.get_address().to_string() << "\n\n";
 
   // Check if this is the receiver
   bool is_receiver = parser.id() == config.get_receiver_id();
@@ -139,17 +139,17 @@ int main(int argc, char **argv)
 
   std::cout << "Broadcasting and delivering messages...\n\n";
 
-  if (is_receiver)
-  {
-    link.start_receiving(write_message);
-  }
-  else
+  // Start receiving and sending thread
+  auto receiver_thread = pl.start_receiving(write_message);
+  auto sender_thread = pl.start_sending();
+
+  // Send messages if sender
+  if (!is_receiver)
   {
     for (size_t i = 1; i <= config.get_message_count(); i++)
     {
       Message message(local_host, receiver_host, i);
-      link.send(message);
-      std::cout << "Sent message: " << message.get_payload_string() << "\n";
+      pl.send(message);
       output_file.write("b " + message.get_payload_string() + "\n");
     }
   }
@@ -159,6 +159,10 @@ int main(int argc, char **argv)
   {
     std::this_thread::sleep_for(std::chrono::hours(1));
   }
+
+  // Join threads
+  receiver_thread.join();
+  sender_thread.join();
 
   return 0;
 }
