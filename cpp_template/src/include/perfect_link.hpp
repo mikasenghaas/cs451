@@ -1,30 +1,14 @@
 #pragma once
 
-// C++ standard library headers
-#include <string>
-#include <vector>
-#include <map>
-#include <thread>
-#include <queue>
-#include <mutex>
-#include <set>
-#include <chrono>
-
-// C system headers
-#include <netinet/in.h>
-#include <sys/socket.h>
-
-// Project headers
 #include "hosts.hpp"
 #include "message.hpp"
 #include "fair_loss_link.hpp"
 
-using ID = size_t;
-
 /**
- * @brief Perfect link class (using stop-and-wait protocol)
+ * @brief PerfectLinkClass
  *
- * Send and receive messages over a network reliably.
+ * @details Send and receive messages over a network reliably
+ * using the stop-and-wait for ACK protocol.
  */
 class PerfectLink
 {

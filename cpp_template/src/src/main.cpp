@@ -1,22 +1,32 @@
 // C++ standard library headers
 #include <atomic>
 #include <chrono>
-#include <iostream>
-#include <thread>
-#include <string>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <cstring>
+#include <functional>
+#include <sstream>
+#include <iostream>
+#include <fstream>
+#include <map>
+#include <mutex>
+#include <queue>
+#include <set>
 #include <stdexcept>
-#include <netdb.h>
+#include <string>
+#include <thread>
+#include <unordered_map>
+#include <algorithm>
 
 // C system headers
+#include <unistd.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <signal.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 // Project headers
 #include "parser.hpp"
 #include "hosts.hpp"
-#include "host_lookup.hpp"
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
@@ -56,7 +66,7 @@ static void stop(int)
 // Define message handler before main
 static void write_message(Message msg)
 {
-  std::cout << "Received message from " << msg.get_sender().get_id() << ": " << msg.get_payload_string() << std::endl;
+  std::cout << "Received message from " << msg.get_sender().get_id() << ": " << msg << std::endl;
   global_output_file->write("d " + std::to_string(msg.get_sender().get_id()) + " " + msg.get_payload_string() + "\n");
 }
 
@@ -77,55 +87,30 @@ int main(int argc, char **argv)
   std::cout << "From a new terminal type `kill -SIGINT " << getpid() << "` or `kill -SIGTERM "
             << getpid() << "` to stop processing packets\n\n";
 
-  // std::cout << "My ID: " << parser.id() << "\n\n";
-
-  // std::cout << "List of resolved hosts is:\n";
-  // std::cout << "==========================\n";
-  // auto hosts = parser.hosts();
-  // for (auto &host : hosts)
-  // {
-  //   std::cout << host.id << "\n";
-  //   std::cout << "Human-readable IP: " << host.ipReadable() << "\n";
-  //   std::cout << "Machine-readable IP: " << host.ip << "\n";
-  //   std::cout << "Human-readable Port: " << host.portReadable() << "\n";
-  //   std::cout << "Machine-readable Port: " << host.port << "\n";
-  //   std::cout << "\n";
-  // }
-  // std::cout << "\n";
-
-  // std::cout << "Path to output:\n";
-  // std::cout << "===============\n";
-  // std::cout << parser.outputPath() << "\n\n";
-
-  // std::cout << "Path to config:\n";
-  // std::cout << "===============\n";
-  // std::cout << parser.configPath() << "\n\n";
-
   std::cout << "Doing some initialization...\n\n";
 
   // Load the hosts file
   Hosts hosts(parser.hostsPath());
-  std::cout << "Loaded hosts (" << hosts.get_hosts().size() << " hosts)\n";
-
-  // Configure host lookup
-  HostLookup host_lookup(hosts);
-  std::cout << "Set up host lookup\n\n";
+  std::string result;
+  result = "Loaded hosts (";
+  for (auto host : hosts.get_hosts()) {
+    result += host.to_string() + ", ";
+  }
+  result.replace(result.end() - 2, result.end(), ")");
+  std::cout << result << "\n";
 
   // Load the config file
   Config config(parser.configPath());
-  std::cout << "Loaded config file (" << config.get_message_count() << " messages to send to " << config.get_receiver_id() << ")\n\n";
-
-  // Open output file
-  OutputFile output_file(parser.outputPath());
-  global_output_file = &output_file;
+  std::cout << "\nLoaded config (m=" << config.get_message_count() << ", p=" << config.get_receiver_id() << ")\n\n";
 
   // Setup local address
-  size_t local_id = parser.id();
-  Host local_host(local_id, host_lookup.get_address(local_id));
+  size_t local_id = static_cast<uint8_t>(parser.id());
+  Host local_host(local_id, hosts.get_address(local_id));
   std::cout << "Local address: " << local_host.get_address().to_string() << "\n\n";
 
+  // Setup receiver address
   size_t receiver_id = config.get_receiver_id();
-  Host receiver_host(receiver_id, host_lookup.get_address(receiver_id));
+  Host receiver_host(receiver_id, hosts.get_address(receiver_id));
   std::cout << "Receiver address: " << receiver_host.get_address().to_string() << "\n\n";
 
   // Setup fair loss link
@@ -133,9 +118,20 @@ int main(int argc, char **argv)
   global_link = &pl;
   std::cout << "Set up perfect link at " << local_host.get_address().to_string() << "\n\n";
 
+  // Open output file
+  OutputFile output_file(parser.outputPath());
+  global_output_file = &output_file;
+  std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
+
   // Check if this is the receiver
   bool is_receiver = parser.id() == config.get_receiver_id();
   std::cout << "Is receiver: " << (is_receiver ? "Yes" : "No") << "\n\n";
+
+  // Check the minimum message size
+  Message msg(local_host, receiver_host);
+  uint64_t num_bytes;
+  msg.serialize(num_bytes);
+  std::cout << "Message size (B): " << num_bytes << "\n\n";
 
   std::cout << "Broadcasting and delivering messages...\n\n";
 
@@ -146,9 +142,10 @@ int main(int argc, char **argv)
   // Send messages if sender
   if (!is_receiver)
   {
-    for (size_t i = 1; i <= config.get_message_count(); i++)
+    for (int i = 1; i <= config.get_message_count(); i++)
     {
-      Message message(local_host, receiver_host, i);
+      Message message(local_host, receiver_host);
+      message.set_payload(i);
       pl.send(message);
       output_file.write("b " + message.get_payload_string() + "\n");
     }

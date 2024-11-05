@@ -1,24 +1,10 @@
 #pragma once
 
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-
-#include <algorithm>
-#include <cctype>
-#include <locale>
-
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>
-
+/**
+ * @brief Parser
+ *
+ * @details Parse the command line arguments and the hosts file.
+ */
 class Parser
 {
 public:

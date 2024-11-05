@@ -1,23 +1,32 @@
 #pragma once
 
-#include <cstring>
-#include <cstdint>
-#include <memory>
-#include "address.hpp"
+// Project files
 #include "host.hpp"
 
+/**
+ * @brief Message
+ *
+ * @details Serialized size:
+ * Host+Receiver: 2*(ID: 8B + Address: 8B) = 32B
+ * Length: 8B
+ * Sequence Number: 8B
+ * Ack: 1B
+ * 
+ * Total: 49B
+*/
 class Message
 {
 private:
     Host sender;
     Host receiver;
     std::shared_ptr<char[]> payload;
-    uint64_t length;
-    size_t seq_num;
-    bool is_ack;
+    size_t length{0};
+    size_t seq_num{0};
+    bool is_ack{false};
 
+    // Encode payload
     template <typename T>
-    static std::shared_ptr<char[]> encode_payload(const T &value, uint64_t &length)
+    static std::shared_ptr<char[]> encode_payload(const T &value, size_t &length)
     {
         length = sizeof(T);
         auto buffer = std::shared_ptr<char[]>(new char[length]);
@@ -25,6 +34,7 @@ private:
         return buffer;
     }
 
+    // Decode payload
     template <typename T>
     T decode_payload() const
     {
@@ -37,27 +47,25 @@ private:
         return value;
     }
 
-
-public:
-    // Empty constructor
-    Message() : sender(), receiver(), length(0), seq_num(0), is_ack(false) {}
-    
-    // Host and sender constructor
-    Message(Host s, Host r) : sender(s), receiver(r), length(0) {}
-
-    // Transport message constructor
-    template <typename T>
-    Message(Host sender, Host receiver, const T &value)
-        : sender(sender), receiver(receiver), length(sizeof(T)), is_ack(false)
+    // Get minimum serialized size
+    static size_t get_min_serialized_size()
     {
-        // Create payload
-        payload = encode_payload(value, length);
+        return sizeof(Host) * 2 + sizeof(length) + sizeof(seq_num) + sizeof(is_ack);
     }
 
+
+public:
+    // Default constructor
+    Message() = default;
+
+    // Main constructor
+    Message(Host sender, Host receiver): sender(sender), receiver(receiver) {}
+
+    // Serialize message
     std::unique_ptr<char[]> serialize(uint64_t &total_length) const
     {
         // Calculate total serialized length
-        total_length = sizeof(Host) * 2 + sizeof(length) + sizeof(seq_num) + sizeof(is_ack) + length;
+        total_length = get_min_serialized_size() + length;
 
         // Create buffer and offset
         std::unique_ptr<char[]> buffer(new char[total_length]);
@@ -86,30 +94,34 @@ public:
     static Message deserialize(const char *buffer, size_t buffer_size)
     {
         size_t offset = 0;
-        size_t minimum_size = sizeof(Host) * 2 + sizeof(length) + sizeof(seq_num) + sizeof(is_ack);
+        size_t minimum_size = get_min_serialized_size();
 
         if (buffer_size < minimum_size)
         {
             throw std::runtime_error("Buffer too small for deserialization");
         }
 
-        // Deserialize header components
+        // Deserialize sender
         Host sender;
         std::memcpy(&sender, buffer + offset, sizeof(sender));
         offset += sizeof(sender);
 
+        // Deserialize receiver
         Host receiver;
         std::memcpy(&receiver, buffer + offset, sizeof(receiver));
         offset += sizeof(receiver);
 
-        uint64_t payload_length;
+        // Deserialize payload length
+        size_t payload_length;
         std::memcpy(&payload_length, buffer + offset, sizeof(payload_length));
         offset += sizeof(payload_length);
 
+        // Deserialize seq_num
         size_t seq_num;
         std::memcpy(&seq_num, buffer + offset, sizeof(seq_num));
         offset += sizeof(seq_num);
 
+        // Deserialize is_ack
         bool is_ack;
         std::memcpy(&is_ack, buffer + offset, sizeof(is_ack));
         offset += sizeof(is_ack);
@@ -135,29 +147,21 @@ public:
         return msg;
     }
 
-    std::string get_payload_string() const
-    {
-        if (length == sizeof(size_t))
-        {
-            return std::to_string(decode_payload<size_t>());
-        }
-        // Add more type handlers as needed
-        return "Unknown payload type";
-    }
-
     // Getters
     Host get_sender() const { return sender; }
     Host get_receiver() const { return receiver; }
-    const char *get_payload() const
-    {
-        return payload.get();
-    }
-    uint64_t get_length() const { return length; }
+    const char *get_payload() const { return payload.get(); }
+    size_t get_length() const { return length; }
     size_t get_seq_num() const { return seq_num; }
     bool get_is_ack() const { return is_ack; }
 
     // Setters
     void set_seq_num(size_t seq_num) { this->seq_num = seq_num; }
+    template <typename T>
+    void set_payload(const T &value)
+    {
+        payload = encode_payload(value, length);
+    }
 
     // Static methods
     static Message create_ack(const Message msg)
@@ -169,6 +173,19 @@ public:
         return ack;
     }
 
+    // Get payload string
+    std::string get_payload_string() const
+    {
+        // Note: Use for  payloads (Milestone 1)
+        if (length == sizeof(int))
+        {
+            return std::to_string(decode_payload<int>());
+        }
+        std::cout << "Unknown payload type\n";
+        return "Unknown payload type";
+    }
+
+    // String representation
     std::string to_string() const {
         std::string result = "Message(";
         result += "sender=" + std::to_string(sender.get_id());
@@ -178,9 +195,6 @@ public:
         result += ")";
         return result;
     }
+    friend std::ostream& operator<<(std::ostream& os, const Message& msg) { return os << msg.to_string(); }
 
-    // Add this operator overload as a friend function
-    friend std::ostream& operator<<(std::ostream& os, const Message& msg) {
-        return os << msg.to_string();
-    }
 };

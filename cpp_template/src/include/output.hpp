@@ -1,11 +1,10 @@
 #pragma once
 
-#include <cstring>
-#include <fstream>
-#include <iostream>
-#include <memory>
-#include <mutex>
-
+/**
+ * @brief Output
+ *
+ * @details Write to a file and flush the buffer when the object is destroyed.
+ */
 class OutputFile
 {
 private:
@@ -13,7 +12,6 @@ private:
 
 public:
     OutputFile(const std::string file_name)
-        : file()
     {
         this->file.open(file_name, std::ofstream::out);
     }

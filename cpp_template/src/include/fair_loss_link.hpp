@@ -1,37 +1,19 @@
 #pragma once
 
-// C++ standard library headers
-#include <string>
-#include <vector>
-#include <map>
-#include <iostream>
-#include <cstdlib>
-
-// C system headers
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
-
-// C++ standard library headers
-#include <fstream>
-
-// Project headers
-#include "address.hpp"
 #include "message.hpp"
 
 #define MAX_RECEIVE_BUFFER_SIZE 65535
 #define MAX_SEND_BUFFER_SIZE 65536
 
 /**
- * @brief Fair loss link class
+ * @brief FairLossLink (UDP)
  *
- * Send and receive messages over a network with fair loss (UDP)
+ * @details Send and receive messages over a network with fair loss (UDP)
  */
 class FairLossLink
 {
 private:
   int sockfd; // Socket file descriptor
-  // SendBuffer send_buffer;         // Buffer for sending messages
   bool continue_receiving = true; // Whether to continue receiving
 
 public:
@@ -46,14 +28,14 @@ public:
   void send(const Message &message)
   {
     // Serialize message
-    uint64_t serialized_length = 0;
-    std::unique_ptr<char[]> payload = message.serialize(serialized_length);
+    uint64_t num_bytes = 0;
+    std::unique_ptr<char[]> data = message.serialize(num_bytes);
 
     // Get address
     sockaddr_in address = message.get_receiver().get_address().to_sockaddr();
 
     // Send message
-    ssize_t sent = sendto(sockfd, payload.get(), serialized_length, 0,
+    ssize_t sent = sendto(sockfd, data.get(), num_bytes, 0,
                           reinterpret_cast<const struct sockaddr *>(&address),
                           sizeof(address));
   }
@@ -68,13 +50,13 @@ public:
     socklen_t source_length = sizeof(source);
 
     // Receive message
-    auto received_length = recvfrom(this->sockfd, buffer, MAX_RECEIVE_BUFFER_SIZE, 0,
+    auto num_bytes = recvfrom(this->sockfd, buffer, MAX_RECEIVE_BUFFER_SIZE, 0,
                                     reinterpret_cast<sockaddr *>(&source), &source_length);
 
-    while (received_length >= 0)
+    while (num_bytes >= 0)
     {
       // Deserialize message
-      Message message = Message::deserialize(buffer, received_length);
+      Message message = Message::deserialize(buffer, num_bytes);
 
       // Handle message
       handler(message);
@@ -86,8 +68,7 @@ public:
       }
 
       // Receive next message
-      received_length =
-          recvfrom(this->sockfd, buffer, MAX_RECEIVE_BUFFER_SIZE, 0,
+      num_bytes = recvfrom(this->sockfd, buffer, MAX_RECEIVE_BUFFER_SIZE, 0,
                    reinterpret_cast<sockaddr *>(&source), &source_length);
     }
 

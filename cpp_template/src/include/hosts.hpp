@@ -1,21 +1,19 @@
 #pragma once
 
-#include <arpa/inet.h>
-#include <fstream>
-#include <unordered_map>
-#include <vector>
-#include <iostream>
-#include <string>
-#include <map>
-#include <sstream>
-
 #include "host.hpp"
 #include "address.hpp"
 
+/**
+ * @brief Hosts
+ *
+ * @details Reads the hosts file and stores the hosts and their addresses, also
+ * provides a method to get the address of a host given its ID.
+ */
 class Hosts
 {
 private:
     std::vector<Host> hosts;
+    std::unordered_map<size_t, Address> host_to_address;
 
 public:
     // Constructor from hosts file (`id ip port`)
@@ -43,6 +41,7 @@ public:
             }
             Address addr(ip, port);
             this->hosts.push_back(Host(id, addr));
+            this->host_to_address[id] = addr;
         }
     }
 
@@ -50,6 +49,15 @@ public:
     {
         return this->hosts;
     }
+
+    Address get_address(size_t host_id)
+    {
+        if (this->host_to_address.find(host_id) == this->host_to_address.end()) {
+            throw std::runtime_error("Host ID not found");
+        }
+        return this->host_to_address[host_id];
+    }
+
 
     size_t get_host_count()
     {
