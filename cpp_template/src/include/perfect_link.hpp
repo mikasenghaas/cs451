@@ -4,6 +4,8 @@
 #include "message.hpp"
 #include "fair_loss_link.hpp"
 
+#define TIMEOUT_MS 1 /// Milliseconds
+
 /**
  * @brief PerfectLinkClass
  *
@@ -41,7 +43,7 @@ public:
     message_to_send.set_seq_num(seq_nums[message.get_receiver().get_id()]++);
 
     send_queue.push(message_to_send);
-    std::cout << "Adding message " << message_to_send.get_seq_num() << " to queue (size=" << send_queue.size() << ")" << std::endl;
+    // std::cout << "Adding message " << message_to_send.get_seq_num() << " to queue (size=" << send_queue.size() << ")" << std::endl;
   }
 
   std::thread start_sending()
@@ -64,7 +66,7 @@ public:
         }
 
         if (!should_send) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          std::this_thread::sleep_for(std::chrono::milliseconds(TIMEOUT_MS));
           continue;
         }
         
@@ -74,11 +76,11 @@ public:
           {
             std::lock_guard<std::mutex> lock(queue_mutex);
             if (has_pending_message) {  // Check again under lock
-              std::cout << "Sending message: " << current_message << std::endl;
+              // std::cout << "Sending message: " << current_message << std::endl;
               this->link.send(current_message);
             }
           }
-          std::this_thread::sleep_for(std::chrono::milliseconds(100));
+          std::this_thread::sleep_for(std::chrono::milliseconds(TIMEOUT_MS));
         }
       }
     });
@@ -94,24 +96,24 @@ public:
         [this, handler](Message message) {
           if (message.get_is_ack())
           {
-            std::cout << "Received ACK: " << message << std::endl;
+            // std::cout << "Received ACK: " << message << std::endl;
             std::lock_guard<std::mutex> lock(queue_mutex);
             has_pending_message = false;
             return;
           }
 
           // Send ACK for received message
-          std::cout << "Received message: " << message << std::endl;
+          // std::cout << "Received message: " << message << std::endl;
           Message ack = Message::create_ack(message);
           this->link.send(ack);
-          std::cout << "Sending ACK: " << ack << std::endl;
+          // std::cout << "Sending ACK: " << ack << std::endl;
 
           // Deliver only if not previously delivered
           {
             std::lock_guard<std::mutex> lock(queue_mutex);
             if (delivered_messages[message.get_sender().get_id()].insert(message.get_seq_num()).second)
             {
-              std::cout << "Delivered message: " << message << std::endl;
+              // std::cout << "Delivered message: " << message << std::endl;
               handler(message);
             }
           }

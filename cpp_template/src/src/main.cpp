@@ -66,7 +66,7 @@ static void stop(int)
 // Define message handler before main
 static void write_message(Message msg)
 {
-  std::cout << "Received message from " << msg.get_sender().get_id() << ": " << msg << std::endl;
+  // std::cout << "Received message from " << msg.get_sender().get_id() << ": " << msg << std::endl;
   global_output_file->write("d " + std::to_string(msg.get_sender().get_id()) + " " + msg.get_payload_string() + "\n");
 }
 
@@ -133,7 +133,11 @@ int main(int argc, char **argv)
   msg.serialize(num_bytes);
   std::cout << "Message size (B): " << num_bytes << "\n\n";
 
+  // Write timestamp to stdout
+  std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
+
   std::cout << "Broadcasting and delivering messages...\n\n";
+
 
   // Start receiving and sending thread
   auto receiver_thread = pl.start_receiving(write_message);

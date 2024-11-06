@@ -12,8 +12,6 @@ import random
 import time
 from enum import Enum
 
-from collections import defaultdict, OrderedDict
-
 PROCESSES_BASE_IP = 11000
 
 
@@ -21,6 +19,12 @@ def positive_int(value):
     ivalue = int(value)
     if ivalue <= 0:
         raise argparse.ArgumentTypeError("{} is not positive integer".format(value))
+    return ivalue
+
+def non_negative_int(value):
+    ivalue = int(value)
+    if ivalue < 0:
+        raise argparse.ArgumentTypeError("{} is not non-negative integer".format(value))
     return ivalue
 
 
@@ -37,7 +41,7 @@ class ProcessInfo:
         self.state = ProcessState.RUNNING
 
     @staticmethod
-    def stateToSignal(state):
+    def state_to_signal(state):
         if state == ProcessState.RUNNING:
             return signal.SIGCONT
 
@@ -48,7 +52,7 @@ class ProcessInfo:
             return signal.SIGTERM
 
     @staticmethod
-    def stateToSignalStr(state):
+    def state_to_signal_str(state):
         if state == ProcessState.RUNNING:
             return "SIGCONT"
 
@@ -59,7 +63,7 @@ class ProcessInfo:
             return "SIGTERM"
 
     @staticmethod
-    def validStateTransition(current, desired):
+    def valid_state_transition(current, desired):
         if current == ProcessState.TERMINATED:
             return False
 
@@ -92,7 +96,7 @@ class Validation:
         self.processes = procs
         self.messages = msgs
 
-    def generatePerfectLinksConfig(self, directory):
+    def generate_perfect_links_config(self, directory):
         hostsfile = os.path.join(directory, "hosts")
         configfile = os.path.join(directory, "config")
 
@@ -105,7 +109,7 @@ class Validation:
 
         return (hostsfile, configfile)
 
-    def generateFifoConfig(self, directory):
+    def generate_fifo_config(self, directory):
         hostsfile = os.path.join(directory, "hosts")
         configfile = os.path.join(directory, "config")
 
@@ -160,103 +164,103 @@ class LatticeAgreementValidation:
 
 
 class StressTest:
-    def __init__(self, procs, concurrency, attempts, attemptsRatio):
+    def __init__(self, procs, concurrency, attempts, attempts_ratio):
         self.processes = len(procs)
-        self.processesInfo = dict()
-        for (logicalPID, handle) in procs:
-            self.processesInfo[logicalPID] = ProcessInfo(handle)
+        self.processes_info = dict()
+        for (logical_pid, handle) in procs:
+            self.processes_info[logical_pid] = ProcessInfo(handle)
         self.concurrency = concurrency
         self.attempts = attempts
-        self.attemptsRatio = attemptsRatio
+        self.attempts_ratio = attempts_ratio
 
-        maxTerminatedProcesses = (
+        max_terminated_processes = (
             self.processes // 2
             if self.processes % 2 == 1
             else (self.processes - 1) // 2
         )
-        self.terminatedProcs = AtomicSaturatedCounter(maxTerminatedProcesses)
+        self.terminated_procs = AtomicSaturatedCounter(max_terminated_processes)
 
     def stress(self):
-        selectProc = list(range(1, self.processes + 1))
-        random.shuffle(selectProc)
+        select_proc = list(range(1, self.processes + 1))
+        random.shuffle(select_proc)
 
-        selectOp = (
-            [ProcessState.STOPPED] * int(1000 * self.attemptsRatio["STOP"])
-            + [ProcessState.RUNNING] * int(1000 * self.attemptsRatio["CONT"])
-            + [ProcessState.TERMINATED] * int(1000 * self.attemptsRatio["TERM"])
+        select_op = (
+            [ProcessState.STOPPED] * int(1000 * self.attempts_ratio["STOP"])
+            + [ProcessState.RUNNING] * int(1000 * self.attempts_ratio["CONT"])
+            + [ProcessState.TERMINATED] * int(1000 * self.attempts_ratio["TERM"])
         )
-        random.shuffle(selectOp)
+        random.shuffle(select_op)
 
-        successfulAttempts = 0
-        while successfulAttempts < self.attempts:
-            proc = random.choice(selectProc)
-            op = random.choice(selectOp)
-            info = self.processesInfo[proc]
+        successful_attempts = 0
+        while successful_attempts < self.attempts:
+            proc = random.choice(select_proc)
+            op = random.choice(select_op)
+            info = self.processes_info[proc]
 
             with info.lock:
-                if ProcessInfo.validStateTransition(info.state, op):
+                if ProcessInfo.valid_state_transition(info.state, op):
 
                     if op == ProcessState.TERMINATED:
-                        reserved = self.terminatedProcs.reserve()
+                        reserved = self.terminated_procs.reserve()
                         if reserved:
                             print(
                                 "Sending {} to process {}".format(
-                                    ProcessInfo.stateToSignalStr(op), proc
+                                    ProcessInfo.state_to_signal_str(op), proc
                                 )
                             )
-                            selectProc.remove(proc)
+                            select_proc.remove(proc)
                         else:
                             continue
 
                     time.sleep(float(random.randint(50, 500)) / 1000.0)
-                    info.handle.send_signal(ProcessInfo.stateToSignal(op))
+                    info.handle.send_signal(ProcessInfo.state_to_signal(op))
                     info.state = op
-                    successfulAttempts += 1
+                    successful_attempts += 1
                     print(
                         "Sending {} to process {}".format(
-                            ProcessInfo.stateToSignalStr(op), proc
+                            ProcessInfo.state_to_signal_str(op), proc
                         )
                     )
 
-                    # if op == ProcessState.TERMINATED and proc not in terminatedProcs:
-                    #     if len(terminatedProcs) < maxTerminatedProcesses:
+                    # if op == ProcessState.TERMINATED and proc not in terminated_procs:
+                    #     if len(terminated_procs) < max_terminated_processes:
 
-                    #         terminatedProcs.add(proc)
+                    #         terminated_procs.add(proc)
 
-                    # if len(terminatedProcs) == maxTerminatedProcesses:
+                    # if len(terminated_procs) == max_terminated_processes:
                     #     break
 
-    def remainingUnterminatedProcesses(self):
+    def remaining_unterminated_processes(self):
         remaining = []
-        for pid, info in self.processesInfo.items():
+        for pid, info in self.processes_info.items():
             with info.lock:
                 if info.state != ProcessState.TERMINATED:
                     remaining.append(pid)
 
         return None if len(remaining) == 0 else remaining
 
-    def terminateAllProcesses(self):
-        for _, info in self.processesInfo.items():
+    def terminate_all_processes(self):
+        for _, info in self.processes_info.items():
             with info.lock:
                 if info.state != ProcessState.TERMINATED:
                     if info.state == ProcessState.STOPPED:
                         info.handle.send_signal(
-                            ProcessInfo.stateToSignal(ProcessState.RUNNING)
+                            ProcessInfo.state_to_signal(ProcessState.RUNNING)
                         )
 
                     info.handle.send_signal(
-                        ProcessInfo.stateToSignal(ProcessState.TERMINATED)
+                        ProcessInfo.state_to_signal(ProcessState.TERMINATED)
                     )
 
         return False
 
-    def continueStoppedProcesses(self):
-        for _, info in self.processesInfo.items():
+    def continue_stopped_processes(self):
+        for _, info in self.processes_info.items():
             with info.lock:
                 if info.state != ProcessState.TERMINATED:
                     if info.state == ProcessState.STOPPED:
                         info.handle.send_signal(
-                            ProcessInfo.stateToSignal(ProcessState.RUNNING)
+                            ProcessInfo.state_to_signal(ProcessState.RUNNING)
                         )
 
     def run(self):
@@ -270,21 +274,21 @@ class StressTest:
             self.stress()
 
 
-def startProcesses(processes, runscript, hostsFilePath, configFilePaths, outputDir):
-    runscriptPath = os.path.abspath(runscript)
-    if not os.path.isfile(runscriptPath):
-        raise Exception("`{}` is not a file".format(runscriptPath))
+def start_processes(processes, runscript, hosts_file_path, config_file_paths, output_dir):
+    runscript_path = os.path.abspath(runscript)
+    if not os.path.isfile(runscript_path):
+        raise Exception(f"`{runscript_path}` is not a file")
 
-    if os.path.basename(runscriptPath) != "run.sh":
-        raise Exception("`{}` is not a runscript".format(runscriptPath))
+    if os.path.basename(runscript_path) != "run.sh":
+        raise Exception(f"`{runscript_path}` is not a runscript")
 
-    outputDirPath = os.path.abspath(outputDir)
-    if not os.path.isdir(outputDirPath):
-        raise Exception("`{}` is not a directory".format(outputDirPath))
+    output_dir_path = os.path.abspath(output_dir)
+    if not os.path.isdir(output_dir_path):
+        raise Exception(f"`{output_dir_path}` is not a directory")
 
-    baseDir, _ = os.path.split(runscriptPath)
-    bin_cpp = os.path.join(baseDir, "bin", "da_proc")
-    bin_java = os.path.join(baseDir, "bin", "da_proc.jar")
+    base_dir, _ = os.path.split(runscript_path)
+    bin_cpp = os.path.join(base_dir, "bin", "da_proc")
+    bin_java = os.path.join(base_dir, "bin", "da_proc.jar")
 
     if os.path.exists(bin_cpp):
         cmd = [bin_cpp]
@@ -292,56 +296,71 @@ def startProcesses(processes, runscript, hostsFilePath, configFilePaths, outputD
         cmd = ["java", "-jar", bin_java]
     else:
         raise Exception(
-            "`{}` could not find a binary to execute. Make sure you build before validating".format(
-                runscriptPath
-            )
+            f"`{runscript_path}` could not find a binary to execute. Make sure you build before validating"
         )
 
     procs = []
     for pid, config_path in zip(
-        range(1, processes + 1), itertools.cycle(configFilePaths)
+        range(1, processes + 1), itertools.cycle(config_file_paths)
     ):
         cmd_ext = [
             "--id",
             str(pid),
             "--hosts",
-            hostsFilePath,
+            hosts_file_path,
             "--output",
-            os.path.join(outputDirPath, "proc{:02d}.output".format(pid)),
+            os.path.join(output_dir_path, "proc{:02d}.output".format(pid)),
             config_path,
         ]
 
-        stdoutFd = open(
-            os.path.join(outputDirPath, "proc{:02d}.stdout".format(pid)), "w"
+        stdout_fd = open(
+            os.path.join(output_dir_path, "proc{:02d}.stdout".format(pid)), "w"
         )
-        stderrFd = open(
-            os.path.join(outputDirPath, "proc{:02d}.stderr".format(pid)), "w"
+        stderr_fd = open(
+            os.path.join(output_dir_path, "proc{:02d}.stderr".format(pid)), "w"
         )
 
         procs.append(
-            (pid, subprocess.Popen(cmd + cmd_ext, stdout=stdoutFd, stderr=stderrFd))
+            (pid, subprocess.Popen(cmd + cmd_ext, stdout=stdout_fd, stderr=stderr_fd))
         )
 
     return procs
 
 
-def main(parser_results, testConfig):
+def distribution_type(value):
+    try:
+        # Parse string like "STOP:0.48,CONT:0.48,TERM:0.04"
+        pairs = [pair.split(':') for pair in value.split(',')]
+        dist = {k: float(v) for k, v in pairs}
+        
+        # Validate the distribution
+        required_keys = {'STOP', 'CONT', 'TERM'}
+        if set(dist.keys()) != required_keys:
+            raise ValueError("Must include STOP, CONT, and TERM")
+        if not abs(sum(dist.values()) - 1.0) < 0.001:
+            raise ValueError("Probabilities must sum to 1.0")
+        return dist
+    except:
+        raise argparse.ArgumentTypeError("Must be in format 'STOP:0.48,CONT:0.48,TERM:0.04'")
+
+
+def main(parser_results):
     cmd = parser_results.command
     runscript = parser_results.runscript
-    logsDir = parser_results.logsDir
+    logs_dir = parser_results.logs_dir
     processes = parser_results.processes
 
-    if not os.path.isdir(logsDir):
-        raise ValueError("Directory `{}` does not exist".format(logsDir))
+    if not os.path.isdir(logs_dir):
+        raise ValueError(f"Directory `{logs_dir}` does not exist")
 
     if cmd == "perfect":
         validation = Validation(processes, parser_results.messages)
-        hostsFile, configFile = validation.generatePerfectLinksConfig(logsDir)
-        configFiles = [configFile]
+        hosts_file, config_file = validation.generate_perfect_links_config(logs_dir)
+        config_files = [config_file]
     elif cmd == "fifo":
         validation = Validation(processes, parser_results.messages)
-        hostsFile, configFile = validation.generateFifoConfig(logsDir)
-        configFiles = [configFile]
+        hosts_file, config_file = validation.generate_fifo_config(logs_dir)
+        config_files = [config_file]
     elif cmd == "agreement":
         proposals = parser_results.proposals
         pmv = parser_results.proposal_max_values
@@ -354,59 +373,63 @@ def main(parser_results, testConfig):
             sys.exit(1)
 
         validation = LatticeAgreementValidation(processes, proposals, pmv, pdv)
-        hostsFile, configFiles = validation.generate(logsDir)
+        hosts_file, config_files = validation.generate(logs_dir)
     else:
         raise ValueError("Unrecognized command")
 
     try:
         # Start the processes and get their PIDs
-        procs = startProcesses(processes, runscript, hostsFile, configFiles, logsDir)
+        procs = start_processes(processes, runscript, hosts_file, config_files, logs_dir)
 
         # Create the stress test
         st = StressTest(
             procs,
-            testConfig["concurrency"],
-            testConfig["attempts"],
-            testConfig["attemptsDistribution"],
+            args.concurrency,
+            args.attempts,
+            args.attempts_distribution
         )
 
-        for (logicalPID, procHandle) in procs:
+        for (logical_pid, proc_handle) in procs:
             print(
                 "Process with logicalPID {} has PID {}".format(
-                    logicalPID, procHandle.pid
+                    logical_pid, proc_handle.pid
                 )
             )
 
         st.run()
-        print("StressTest is complete.")
+        print("Stress test done.")
 
         print("Resuming stopped processes.")
-        st.continueStoppedProcesses()
+        st.continue_stopped_processes()
 
-        input("Press `Enter` when all processes have finished processing messages.")
+        if args.timeout is None:
+            input("Press `Enter` when all processes have finished processing messages.")
+        else:
+            print(f"Waiting for {args.timeout} seconds before terminating")
+            time.sleep(args.timeout)
 
-        unterminated = st.remainingUnterminatedProcesses()
+        unterminated = st.remaining_unterminated_processes()
         if unterminated is not None:
-            st.terminateAllProcesses()
+            st.terminate_all_processes()
 
         mutex = threading.Lock()
 
-        def waitForProcess(logicalPID, procHandle, mutex):
-            procHandle.wait()
+        def wait_for_process(logical_pid, proc_handle, mutex):
+            proc_handle.wait()
 
             with mutex:
                 print(
                     "Process {} exited with {}".format(
-                        logicalPID, procHandle.returncode
+                        logical_pid, proc_handle.returncode
                     )
                 )
 
         # Monitor which processes have exited
         monitors = [
             threading.Thread(
-                target=waitForProcess, args=(logicalPID, procHandle, mutex)
+                target=wait_for_process, args=(logical_pid, proc_handle, mutex)
             )
-            for (logicalPID, procHandle) in procs
+            for (logical_pid, proc_handle) in procs
         ]
         [p.start() for p in monitors]
         [p.join() for p in monitors]
@@ -418,15 +441,15 @@ def main(parser_results, testConfig):
 
 
 if __name__ == "__main__":
+    # Create argument parser
     parser = argparse.ArgumentParser()
 
-    sub_parsers = parser.add_subparsers(dest="command", help="stress a given milestone")
+    # Add subparsers for each milestone
+    sub_parsers = parser.add_subparsers(dest="command", help="Stress a given milestone")
     sub_parsers.required = True
-    parser_perfect = sub_parsers.add_parser("perfect", help="stress perfect links")
-    parser_fifo = sub_parsers.add_parser("fifo", help="stress fifo broadcast")
-    parser_agreement = sub_parsers.add_parser(
-        "agreement", help="stress lattice agreement"
-    )
+    parser_perfect = sub_parsers.add_parser("perfect", help="Stress perfect links")
+    parser_fifo = sub_parsers.add_parser("fifo", help="Stress fifo broadcast")
+    parser_agreement = sub_parsers.add_parser("agreement", help="Stress lattice agreement")
 
     for subparser in [parser_perfect, parser_fifo, parser_agreement]:
         subparser.add_argument(
@@ -441,7 +464,7 @@ if __name__ == "__main__":
             "-l",
             "--logs",
             required=True,
-            dest="logsDir",
+            dest="logs_dir",
             help="Directory to store stdout, stderr and outputs generated by the processes",
         )
 
@@ -454,6 +477,33 @@ if __name__ == "__main__":
             help="Number of processes that broadcast",
         )
 
+        subparser.add_argument(
+            "-a",
+            "--attempts",
+            type=non_negative_int,
+            default=8,
+            dest="attempts",
+            help="Number of attempts to run the stress test",
+        )
+
+        subparser.add_argument(
+            "-c",
+            "--concurrency",
+            type=positive_int,
+            default=8,
+            dest="concurrency",
+            help="Number of threads to run the stress test",
+        )
+
+        subparser.add_argument(
+            "-ad",
+            "--attempts-distribution",
+            type=distribution_type,
+            default="STOP:0.48,CONT:0.48,TERM:0.04",
+            dest="attempts_distribution",
+            help="Distribution of the attempts (format: STOP:0.48,CONT:0.48,TERM:0.04)",
+        )
+
     for subparser in [parser_perfect, parser_fifo]:
         subparser.add_argument(
             "-m",
@@ -464,6 +514,14 @@ if __name__ == "__main__":
             help="Maximum number (because it can crash) of messages that each process can broadcast",
         )
 
+    parser_perfect.add_argument(
+        "-t",
+        "--timeout",
+        type=positive_int,
+        dest="timeout",
+        help="Timeout in seconds after which the program will terminate",
+    )
+    
     parser_agreement.add_argument(
         "-n",
         "--proposals",
@@ -491,16 +549,6 @@ if __name__ == "__main__":
         help="The number of distinct values among all proposals",
     )
 
-    results = parser.parse_args()
+    args = parser.parse_args()
 
-    testConfig = {
-        "concurrency": 8,  # How many threads are interferring with the running processes
-        "attempts": 8,  # How many interferring attempts each threads does
-        "attemptsDistribution": {  # Probability with which an interferring thread will
-            "STOP": 0.48,  # select an interferring action (make sure they add up to 1)
-            "CONT": 0.48,
-            "TERM": 0.04,
-        },
-    }
-
-    main(results, testConfig)
+    main(args)
