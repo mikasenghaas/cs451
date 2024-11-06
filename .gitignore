@@ -1,6 +1,6 @@
 # Custom
 **/.DS_Store
-example/output/*.output
-example/output/*.stdout
 .vscode
 logs
+example/output/
+!example/output/README
