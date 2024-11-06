@@ -3,3 +3,4 @@
 example/output/*.output
 example/output/*.stdout
 .vscode
+logs

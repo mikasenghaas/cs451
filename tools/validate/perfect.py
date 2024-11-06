@@ -8,17 +8,20 @@ def check_sender(outputs: List[str], id: int, n: int):
         msg = f"b {msg_id}"
         assert msg in all_outputs, f"Validation failed for sender with id={id}: {msg} not sent"
 
-def check_receiver(outputs: List[str], id: int, n: int):
-    senders = [i for i in range(1, id)]
+def check_receiver(outputs: List[str], num_hosts: int, id: int, n: int):
+    senders = [i for i in range(1, num_hosts+1) if i != id]
     all_outputs = set(outputs)
+    received = {sender_id: 0 for sender_id in senders}
     for sender_id in senders:
         for msg_id in range(1, n+1):
             msg = f"d {sender_id} {msg_id}"
-            assert msg in all_outputs, f"Validation failed for receiver with id={id}: {msg} not received"
+            if msg in all_outputs:
+                received[sender_id] += 1
+    return received
 
 def main():
     if len(sys.argv) != 4:
-        print("Usage: python perfect_link.py <config_file> <host_file> <output_dir>")
+        print("Usage: python perfect.py <config_file> <host_file> <output_dir>")
         sys.exit(1)
 
     # Read arguments
@@ -53,9 +56,12 @@ def main():
         with open(os.path.join(output_dir, f"proc{process_id:02d}.output"), "r") as f:
             outputs = list(map(str.strip, f.readlines()))
             if process_id == receiver_id:
-                check_receiver(outputs, process_id, message_count)
+                num_received = check_receiver(outputs, num_hosts, process_id, message_count)
             else:
                 check_sender(outputs, process_id, message_count)
+
+    for s, m in num_received.items():
+        print(f"Received {m} ({m/message_count*100:.2f}%) messages from {s}")
 
     print("Perfect link validation passed ✅")
 

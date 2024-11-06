@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-import os, sys, atexit
-import textwrap
+import os, sys
 import time
 import threading, subprocess
 import itertools
@@ -200,6 +199,11 @@ class StressTest:
                     if op == ProcessState.TERMINATED:
                         reserved = self.terminatedProcs.reserve()
                         if reserved:
+                            print(
+                                "Sending {} to process {}".format(
+                                    ProcessInfo.stateToSignalStr(op), proc
+                                )
+                            )
                             selectProc.remove(proc)
                         else:
                             continue
