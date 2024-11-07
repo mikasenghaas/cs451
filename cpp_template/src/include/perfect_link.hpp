@@ -4,8 +4,6 @@
 #include "message.hpp"
 #include "fair_loss_link.hpp"
 
-#define TIMEOUT_MS 100 /// Milliseconds
-
 /**
  * @brief PerfectLinkClass
  *
@@ -21,7 +19,8 @@ private:
   SendBuffer send_buffer;
   bool continue_sending = true;
   std::map<size_t, size_t> seq_nums; // seq_num from sender host_id
-  std::map<size_t, std::set<size_t>> delivered_messages; // Delivered seq_num from sender host_id
+  std::map<size_t, std::set<size_t>> acked_messages; // Acked set of messages set<message_id> to receiver host_id
+  std::map<size_t, std::set<size_t>> delivered_messages; // Delivered set of messages set<message_id> from sender host_id
   bool has_pending_message = false;
   std::queue<TransportMessage> send_queue; // Queue of messages to send
   std::mutex queue_mutex;
@@ -31,18 +30,19 @@ public:
     for (const auto &host : hosts.get_hosts()) {
       if (host.get_id() != this->host.get_id()) {
         seq_nums[host.get_id()] = 1;
+        acked_messages[host.get_id()];
         delivered_messages[host.get_id()];
       }
     }
   }
 
-  void send(DataMessage message, Host receiver)
+  void send(DataMessage message, Host receiver, const bool &immediately = false)
   {
     std::lock_guard<std::mutex> lock(queue_mutex);
 
     // Add message to send buffer
     uint64_t payload_length;
-    auto payload = send_buffer.add_message(receiver, message, payload_length);
+    auto payload = send_buffer.add_message(receiver, message, payload_length, immediately);
 
     if (payload_length == 0) {
       return;
@@ -54,7 +54,7 @@ public:
     std::memcpy(shared_payload.get(), payload.get(), payload_length);
     TransportMessage transport_message(id, host, receiver, shared_payload, payload_length, false);
     send_queue.push(transport_message);
-    std::cout << "Added message " << id << " to queue (size=" << send_queue.size() << ")" << std::endl;
+    // std::cout << "Added message " << id << " to queue (size=" << send_queue.size() << ")" << std::endl;
   }
 
   std::thread start_sending()
@@ -64,34 +64,23 @@ public:
     return std::thread([this]() {
       while (this->continue_sending)
       {
-        TransportMessage current_message;
-        bool should_send = false;
+        TransportMessage message;
         {
           std::lock_guard<std::mutex> lock(queue_mutex);
           if (!send_queue.empty()) {
-            current_message = send_queue.front();
+            message = send_queue.front();
             send_queue.pop();
-            should_send = true;
-            has_pending_message = true;
-          }
-        }
 
-        if (!should_send) {
-          std::this_thread::sleep_for(std::chrono::milliseconds(TIMEOUT_MS));
-          continue;
-        }
-        
-        // Send and wait for ACK
-        while (this->continue_sending && has_pending_message)
-        {
-          {
-            std::lock_guard<std::mutex> lock(queue_mutex);
-            if (has_pending_message) {  // Check again under lock
-              // std::cout << "Sending message: " << current_message << std::endl;
-              this->link.send(current_message);
+            size_t receiver_id = message.get_receiver().get_id();
+            size_t id = message.get_id();
+
+            if (acked_messages[receiver_id].count(id) == 0) {
+              // Send message
+              // std::cout << "Sending message " << message << std::endl;
+              this->link.send(message);
+              send_queue.push(message);
             }
           }
-          std::this_thread::sleep_for(std::chrono::milliseconds(TIMEOUT_MS));
         }
       }
     });
@@ -105,11 +94,13 @@ public:
     auto receiver_function = [this, handler]() {
       this->link.start_receiving(
         [this, handler](TransportMessage message) {
+          // Get sender and message id
+          size_t sender_id = message.get_sender().get_id();
+          size_t id = message.get_id();
           if (message.get_is_ack())
           {
             // std::cout << "Received ACK: " << message << std::endl;
-            std::lock_guard<std::mutex> lock(queue_mutex);
-            has_pending_message = false;
+            acked_messages[sender_id].insert(id);
             return;
           }
 
@@ -122,11 +113,11 @@ public:
           // Deliver only if not previously delivered
           {
             std::lock_guard<std::mutex> lock(queue_mutex);
-            if (delivered_messages[message.get_sender().get_id()].insert(message.get_id()).second)
+            if (delivered_messages[sender_id].insert(id).second)
             {
-              // std::cout << "Delivered message: " << message << std::endl;
               std::vector<DataMessage> data_messages = SendBuffer::deserialize(message.get_payload(), message.get_length());
               for (auto data_message : data_messages) {
+                // std::cout << "Delivered message: " << data_message.get_message() << std::endl;
                 handler(data_message, message.get_sender());
               }
             }
