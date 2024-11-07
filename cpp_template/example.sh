@@ -42,4 +42,4 @@ done
 echo "Done" >> $log_file
 
 # Validate the output files
-python ../tools/validate/perfect_link.py ../example/configs/perfect-links.config ../example/hosts ../example/output
+python ../tools/correctness.py perfect -C ../example/configs/perfect-links.config -H ../example/hosts -L ../example/output
