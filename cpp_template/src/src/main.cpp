@@ -142,7 +142,7 @@ int main(int argc, char **argv)
     for (int i = 1; i <= config.get_message_count(); i++)
     {
       DataMessage message(std::to_string(i));
-      pl.send(message, receiver_host);
+      pl.send(message, receiver_host, i == config.get_message_count() ? true : false);
       output_file.write("b " + message.get_message() + "\n");
     }
   }

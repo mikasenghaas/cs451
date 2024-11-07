@@ -31,7 +31,7 @@ public:
         }
     }            
 
-    std::unique_ptr<char[]> add_message(Host receiver, DataMessage message, uint64_t &payload_length)
+    std::unique_ptr<char[]> add_message(Host receiver, DataMessage message, uint64_t &payload_length, const bool &reset = false)
     {
         // Serialize the message
         uint64_t serialized_length;
@@ -56,11 +56,24 @@ public:
             this->sizes[receiver_id] += sizeof(serialized_length) + serialized_length;
             this->message_counts[receiver_id]++;
             this->lock.unlock();
-            // std::cout << "Adding message to buffer (" << this->message_counts[receiver_id] << " messages)" << std::endl;
+            std::cout << "Adding message to buffer (" << this->message_counts[receiver_id] << " messages)" << std::endl;
             
             // Return empty buffer (send buffer is not ready yet)
-            payload_length = 0;
-            return std::unique_ptr<char[]>(new char[0]);
+            if (!reset)
+            {
+                std::unique_ptr<char[]> buffer_payload(new char[0]);
+                payload_length = 0;
+                return buffer_payload;
+            } else {
+                // Copy the buffer to return
+                std::unique_ptr<char[]> buffer_payload(new char[this->sizes[receiver_id]]);
+                std::memcpy(buffer_payload.get(), this->buffers[receiver_id].get(), this->sizes[receiver_id]);
+                payload_length = this->sizes[receiver_id];
+                this->sizes[receiver_id] = 0;
+                this->message_counts[receiver_id] = 0;
+
+                return buffer_payload;
+            }
         } else { // Otherwise, return the full buffer and reset with new message
             // Copy the buffer to return
             // std::cout << "Copying buffer to return" << std::endl;
