@@ -56,7 +56,7 @@ public:
             this->sizes[receiver_id] += sizeof(serialized_length) + serialized_length;
             this->message_counts[receiver_id]++;
             this->lock.unlock();
-            std::cout << "Adding message to buffer (" << this->message_counts[receiver_id] << " messages)" << std::endl;
+            // std::cout << "Adding message to buffer (" << this->message_counts[receiver_id] << " messages)" << std::endl;
             
             // Return empty buffer (send buffer is not ready yet)
             if (!reset)
