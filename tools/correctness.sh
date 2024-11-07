@@ -1,10 +1,13 @@
 #!/bin/bash
 
-if [ -z $1 ]; then
-    echo "Usage: $0 <num_processes>"
+if [ -z $1 ] || [ -z $2 ] || [ -z $3 ]; then
+    echo "Usage: $0 <message_count> <num_processes> <timeout> [attempts]"
     exit 1
 fi
-p=$1
+m=$1
+p=$2
+t=$3
+a=${4:-0}  # Default attempts to 0 if not provided
 
 # Build project
 bash cpp_template/build.sh
@@ -18,20 +21,13 @@ python tools/stress.py perfect \
     -r cpp_template/run.sh \
     -l logs \
     -p $p \
-    -m 100000 \
-    -t 30 \
-    -a 0 \
+    -m $m \
+    -t $t \
+    -a $a \
 
 # Validate correctness
 echo -e "\nCorrectness:"
 python tools/correctness.py perfect \
-    -C logs/config \
-    -H logs/hosts \
-    -L logs
-
-# Estimate performance
-echo -e "\nPerformance:"
-python tools/performance.py perfect \
     -C logs/config \
     -H logs/hosts \
     -L logs
