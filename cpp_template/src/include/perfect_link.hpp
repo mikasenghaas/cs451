@@ -4,7 +4,7 @@
 #include "message.hpp"
 #include "fair_loss_link.hpp"
 
-#define TIMEOUT_MS 1000 /// Milliseconds
+#define TIMEOUT_MS 100 /// Milliseconds
 
 /**
  * @brief PerfectLinkClass

@@ -66,7 +66,7 @@ static void stop(int)
 // Define message handler before main
 static void write_message(DataMessage msg, Host sender)
 {
-  std::cout << "Received message from " << sender.get_id() << ": " << msg.get_message() << std::endl;
+  // std::cout << "Received message from " << sender.get_id() << ": " << msg.get_message() << std::endl;
   global_output_file->write("d " + std::to_string(sender.get_id()) + " " + msg.get_message() + "\n");
 }
 
