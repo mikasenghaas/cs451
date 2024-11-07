@@ -1,6 +1,7 @@
 #pragma once
 
 #include "message.hpp"
+#include "send_buffer.hpp"
 
 #define MAX_RECEIVE_BUFFER_SIZE 65535
 #define MAX_SEND_BUFFER_SIZE 65536
@@ -25,22 +26,22 @@ public:
     this->sockfd = create_socket();
   }
 
-  void send(const Message &message)
+  void send(const TransportMessage &message)
   {
-    // Serialize message
-    uint64_t num_bytes = 0;
-    std::unique_ptr<char[]> data = message.serialize(num_bytes);
+    // Add message to send buffer
+    uint64_t payload_length = 0;
+    auto payload = message.serialize(payload_length);
 
-    // Get address
-    sockaddr_in address = message.get_receiver().get_address().to_sockaddr();
+    // Buffer is ready to send
+    if (payload_length > 0) {
+      sockaddr_in address = message.get_receiver().get_address().to_sockaddr();
 
-    // Send message
-    ssize_t sent = sendto(sockfd, data.get(), num_bytes, 0,
-                          reinterpret_cast<const struct sockaddr *>(&address),
-                          sizeof(address));
+      sendto(this->sockfd, payload.get(), payload_length, 0,
+                  reinterpret_cast<sockaddr *>(&address), sizeof(address));
+    }
   }
 
-  void start_receiving(std::function<void(Message)> handler)
+  void start_receiving(std::function<void(TransportMessage)> handler)
   {
     // Create receive buffer
     char buffer[MAX_RECEIVE_BUFFER_SIZE];
@@ -56,7 +57,7 @@ public:
     while (num_bytes >= 0)
     {
       // Deserialize message
-      Message message = Message::deserialize(buffer, num_bytes);
+      TransportMessage message = TransportMessage::deserialize(buffer, num_bytes);
 
       // Handle message
       handler(message);

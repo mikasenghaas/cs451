@@ -4,7 +4,7 @@
 #include "message.hpp"
 #include "fair_loss_link.hpp"
 
-#define TIMEOUT_MS 1 /// Milliseconds
+#define TIMEOUT_MS 1000 /// Milliseconds
 
 /**
  * @brief PerfectLinkClass
@@ -18,15 +18,16 @@ private:
   Host host;
   Hosts hosts;
   FairLossLink link;
+  SendBuffer send_buffer;
   bool continue_sending = true;
   std::map<size_t, size_t> seq_nums; // seq_num from sender host_id
   std::map<size_t, std::set<size_t>> delivered_messages; // Delivered seq_num from sender host_id
   bool has_pending_message = false;
-  std::queue<Message> send_queue; // Queue of messages to send
+  std::queue<TransportMessage> send_queue; // Queue of messages to send
   std::mutex queue_mutex;
 
 public:
-  PerfectLink(Host host, Hosts hosts) : host(host), hosts(hosts), link(host) {
+  PerfectLink(Host host, Hosts hosts) : host(host), hosts(hosts), link(host), send_buffer(hosts, MAX_SEND_BUFFER_SIZE) {
     for (const auto &host : hosts.get_hosts()) {
       if (host.get_id() != this->host.get_id()) {
         seq_nums[host.get_id()] = 1;
@@ -35,15 +36,25 @@ public:
     }
   }
 
-  void send(Message message)
+  void send(DataMessage message, Host receiver)
   {
     std::lock_guard<std::mutex> lock(queue_mutex);
 
-    Message message_to_send = message;
-    message_to_send.set_seq_num(seq_nums[message.get_receiver().get_id()]++);
+    // Add message to send buffer
+    uint64_t payload_length;
+    auto payload = send_buffer.add_message(receiver, message, payload_length);
 
-    send_queue.push(message_to_send);
-    // std::cout << "Adding message " << message_to_send.get_seq_num() << " to queue (size=" << send_queue.size() << ")" << std::endl;
+    if (payload_length == 0) {
+      return;
+    }
+
+    // Buffer is ready to send
+    size_t id = seq_nums[receiver.get_id()]++;
+    auto shared_payload = std::shared_ptr<char[]>(new char[payload_length]);
+    std::memcpy(shared_payload.get(), payload.get(), payload_length);
+    TransportMessage transport_message(id, host, receiver, shared_payload, payload_length, false);
+    send_queue.push(transport_message);
+    std::cout << "Added message " << id << " to queue (size=" << send_queue.size() << ")" << std::endl;
   }
 
   std::thread start_sending()
@@ -53,7 +64,7 @@ public:
     return std::thread([this]() {
       while (this->continue_sending)
       {
-        Message current_message;
+        TransportMessage current_message;
         bool should_send = false;
         {
           std::lock_guard<std::mutex> lock(queue_mutex);
@@ -87,13 +98,13 @@ public:
   }
 
 
-  std::thread start_receiving(std::function<void(Message)> handler)
+  std::thread start_receiving(std::function<void(DataMessage, Host)> handler)
   {
     std::cout << "Starting receiving on " << host.get_address().to_string() << "\n";
 
     auto receiver_function = [this, handler]() {
       this->link.start_receiving(
-        [this, handler](Message message) {
+        [this, handler](TransportMessage message) {
           if (message.get_is_ack())
           {
             // std::cout << "Received ACK: " << message << std::endl;
@@ -104,17 +115,20 @@ public:
 
           // Send ACK for received message
           // std::cout << "Received message: " << message << std::endl;
-          Message ack = Message::create_ack(message);
+          TransportMessage ack = TransportMessage::create_ack(message);
           this->link.send(ack);
           // std::cout << "Sending ACK: " << ack << std::endl;
 
           // Deliver only if not previously delivered
           {
             std::lock_guard<std::mutex> lock(queue_mutex);
-            if (delivered_messages[message.get_sender().get_id()].insert(message.get_seq_num()).second)
+            if (delivered_messages[message.get_sender().get_id()].insert(message.get_id()).second)
             {
               // std::cout << "Delivered message: " << message << std::endl;
-              handler(message);
+              std::vector<DataMessage> data_messages = SendBuffer::deserialize(message.get_payload(), message.get_length());
+              for (auto data_message : data_messages) {
+                handler(data_message, message.get_sender());
+              }
             }
           }
       });

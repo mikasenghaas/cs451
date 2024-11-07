@@ -64,10 +64,10 @@ static void stop(int)
 }
 
 // Define message handler before main
-static void write_message(Message msg)
+static void write_message(DataMessage msg, Host sender)
 {
-  // std::cout << "Received message from " << msg.get_sender().get_id() << ": " << msg << std::endl;
-  global_output_file->write("d " + std::to_string(msg.get_sender().get_id()) + " " + msg.get_payload_string() + "\n");
+  std::cout << "Received message from " << sender.get_id() << ": " << msg.get_message() << std::endl;
+  global_output_file->write("d " + std::to_string(sender.get_id()) + " " + msg.get_message() + "\n");
 }
 
 int main(int argc, char **argv)
@@ -127,17 +127,10 @@ int main(int argc, char **argv)
   bool is_receiver = parser.id() == config.get_receiver_id();
   std::cout << "Is receiver: " << (is_receiver ? "Yes" : "No") << "\n\n";
 
-  // Check the minimum message size
-  Message msg(local_host, receiver_host);
-  uint64_t num_bytes;
-  msg.serialize(num_bytes);
-  std::cout << "Message size (B): " << num_bytes << "\n\n";
-
   // Write timestamp to stdout
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
 
   std::cout << "Broadcasting and delivering messages...\n\n";
-
 
   // Start receiving and sending thread
   auto receiver_thread = pl.start_receiving(write_message);
@@ -148,10 +141,9 @@ int main(int argc, char **argv)
   {
     for (int i = 1; i <= config.get_message_count(); i++)
     {
-      Message message(local_host, receiver_host);
-      message.set_payload(i);
-      pl.send(message);
-      output_file.write("b " + message.get_payload_string() + "\n");
+      DataMessage message(std::to_string(i));
+      pl.send(message, receiver_host);
+      output_file.write("b " + message.get_message() + "\n");
     }
   }
 
