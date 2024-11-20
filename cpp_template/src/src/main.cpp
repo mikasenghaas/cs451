@@ -30,11 +30,12 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "best_effort_broadcast.hpp"
+// #include "best_effort_broadcast.hpp"
+#include "perfect_link.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static BestEffortBroadcast *global_beb = nullptr;
+static PerfectLink *global_pl = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -47,10 +48,10 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_beb != nullptr)
+  if (global_pl != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_beb->shutdown();
+    global_pl->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -65,15 +66,17 @@ static void stop(int)
 
 static void send_handler(DataMessage msg)
 {
-  std::cout << "Broadcast message " << msg.get_message() << std::endl;
+  // std::string message = std::string(msg.get_payload(), msg.get_length());
+  // std::cout << "b " << msg.get_message() << std::endl;
   global_output_file->write("b " + msg.get_message() + "\n");
 }
 
 // Define message handler before main
-static void deliver_handler(DataMessage msg, Host sender)
+static void deliver(TransportMessage msg)
 {
-  std::cout << "Delivered message from " << sender.get_id() << ": " << msg.get_message() << std::endl;
-  global_output_file->write("d " + std::to_string(sender.get_id()) + " " + msg.get_message() + "\n");
+  std::string message = std::string(msg.get_payload(), msg.get_length());
+  // std::cout << "Delivered message from " << msg.get_sender().get_id() << ": " << message << std::endl;
+  global_output_file->write("d " + std::to_string(msg.get_sender().get_id()) + " " + message + "\n");
 }
 
 int main(int argc, char **argv)
@@ -120,9 +123,10 @@ int main(int argc, char **argv)
   std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
   // Setup best-effort broadcast
-  std::cout << "Setting up best effort broadcast at " << local_host.get_address().to_string() << "\n\n";
-  BestEffortBroadcast beb(local_host, hosts, send_handler, deliver_handler);
-  global_beb = &beb;
+  // BestEffortBroadcast beb(local_host, hosts, send_handler, deliver_handler);
+  // global_beb = &beb;
+  PerfectLink pl(local_host, hosts, deliver);
+  global_pl = &pl;
 
   // Start broadcasting and delivering messages
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
@@ -130,17 +134,14 @@ int main(int argc, char **argv)
 
   for (int i = 1; i <= config.get_message_count(); i++) {
     DataMessage message(std::to_string(i));
-    beb.broadcast(message, i == config.get_message_count() ? true : false);
+    pl.broadcast(message, true);
+    send_handler(message);
   }
 
   // Infinite loop to keep the program running
   while (!should_stop) {
     std::this_thread::sleep_for(std::chrono::hours(1));
   }
-
-  // Join threads
-  // receiver_thread.join();
-  // sender_thread.join();
 
   return 0;
 }

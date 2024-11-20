@@ -9,8 +9,8 @@
  * @brief Buffer for sending messages to hosts
  * 
  * @details The send buffer is a buffer for sending messages to hosts. It is used to
- *          batch messages to the same host into a single buffer. This should give
- *          a constant performance improvement by MAX_MESSAGE_COUNT.
+ * batch messages to the same host into a single buffer. This should give
+ * a constant performance improvement by MAX_MESSAGE_COUNT.
  */
 class SendBuffer {
 private:
@@ -31,14 +31,15 @@ public:
         }
     }            
 
-    std::unique_ptr<char[]> add_message(Host receiver, DataMessage message, uint64_t &payload_length, const bool &reset = false)
+    std::unique_ptr<char[]> add_message(TransportMessage message, uint64_t &payload_length, const bool &reset = false)
     {
         // Serialize the message
         uint64_t serialized_length;
         std::unique_ptr<char[]> serialized_message = message.serialize(serialized_length);
+        std::cout << "Serialized TM: " << message << " (" << serialized_length << " bytes)" << std::endl;
 
         // Get host id of receiver
-        size_t receiver_id = receiver.get_id();
+        size_t receiver_id = message.get_receiver().get_id();
 
         // Acquire lock to manipulate buffer
         this->lock.lock();
@@ -56,7 +57,7 @@ public:
             this->sizes[receiver_id] += sizeof(serialized_length) + serialized_length;
             this->message_counts[receiver_id]++;
             this->lock.unlock();
-            // std::cout << "Adding message to buffer (" << this->message_counts[receiver_id] << " messages)" << std::endl;
+            std::cout << "Adding message to buffer (" << this->message_counts[receiver_id] << " messages)" << std::endl;
             
             // Return empty buffer (send buffer is not ready yet)
             if (!reset)
@@ -93,13 +94,13 @@ public:
         }
     }
 
-    static std::vector<DataMessage> deserialize(const char *buffer, size_t received_length) {
-        std::vector<DataMessage> messages;
+    static std::vector<TransportMessage> deserialize(const char *buffer, size_t received_length) {
+        std::vector<TransportMessage> messages;
         size_t offset = 0;
         uint64_t message_length;
         while (offset < received_length) {
             std::memcpy(&message_length, buffer + offset, sizeof(message_length));
-            DataMessage message = DataMessage::deserialize(buffer + offset + sizeof(message_length), message_length);
+            TransportMessage message = TransportMessage::deserialize(buffer + offset + sizeof(message_length), message_length);
             messages.push_back(message);
             offset += sizeof(message_length) + message_length;
         }

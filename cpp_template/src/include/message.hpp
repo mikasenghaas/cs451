@@ -191,6 +191,7 @@ public:
     static TransportMessage create_ack(const TransportMessage msg)
     {
         TransportMessage ack;
+        ack.seq_number = msg.seq_number;
         ack.sender = msg.receiver;
         ack.receiver = msg.sender;
         ack.is_ack = true;

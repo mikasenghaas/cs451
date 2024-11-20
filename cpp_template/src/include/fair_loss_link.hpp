@@ -14,35 +14,44 @@
 class FairLossLink
 {
 private:
-  int sockfd; // Socket file descriptor
-  bool continue_receiving = true; // Whether to continue receiving
+  Host host;
+  // SendBuffer send_buffer;
+  bool continue_receiving = true;
+  int sockfd;
 
 public:
-  const Host host;
 
-  FairLossLink(Host host) : host(host)
+  FairLossLink(Host host, Hosts hosts) : host(host)
   {
+    std::cout << "Setting up fair loss link at " << host.get_address().to_string() << std::endl;
     // Create socket
     this->sockfd = create_socket();
   }
 
-  void send(const TransportMessage &message)
+  /*
+  * @brief Send a message over the network (accumulates up to 8 messages to the
+  * same host in a send buffer)
+  */
+  void send(TransportMessage tm, const bool immediate = false)
   {
-    // Add message to send buffer
-    uint64_t payload_length = 0;
-    auto payload = message.serialize(payload_length);
+    // std::cout << "flSend: " << tm << std::endl;
+    
+    // Serialize message
+    uint64_t payload_length;
+    auto payload = tm.serialize(payload_length);
 
-    // Buffer is ready to send
-    if (payload_length > 0) {
-      sockaddr_in address = message.get_receiver().get_address().to_sockaddr();
-
-      sendto(this->sockfd, payload.get(), payload_length, 0,
-                  reinterpret_cast<sockaddr *>(&address), sizeof(address));
-    }
+    // Send message
+    sockaddr_in address = tm.get_receiver().get_address().to_sockaddr();
+    sendto(this->sockfd, payload.get(), payload_length, 0,
+                reinterpret_cast<sockaddr *>(&address), sizeof(address));
   }
 
+  /* @brief Receives messages until the stop_receiving() method is called; for every transport message received,
+   * the handler is called.
+   */
   void start_receiving(std::function<void(TransportMessage)> handler)
   {
+    // std::cout << "Starting receive on " << host.get_address().to_string() << std::endl;
     // Create receive buffer
     char buffer[MAX_RECEIVE_BUFFER_SIZE];
 
@@ -57,10 +66,9 @@ public:
     while (num_bytes >= 0)
     {
       // Deserialize message
-      TransportMessage message = TransportMessage::deserialize(buffer, num_bytes);
-
-      // Handle message
-      handler(message);
+      TransportMessage tm = TransportMessage::deserialize(buffer, num_bytes);
+      // std::cout << "flRecv: " << tm << std::endl;
+      handler(tm);
 
       // Stop receiving if flag is set
       if (!this->continue_receiving)
@@ -75,13 +83,11 @@ public:
 
     // Close socket
     close(this->sockfd);
-    std::cout << "Stopped receiveing on address: " << this->host.get_address().to_string() << std::endl;
   }
 
   void stop_receiving()
   {
     this->continue_receiving = false;
-    std::cout << "Stopping receiving on address: " << this->host.get_address().to_string() << std::endl;
   }
 
 private:
