@@ -17,14 +17,14 @@ private:
   Hosts hosts;
   FairLossLink link;
   SendBuffer send_buffer;
-  bool continue_sending = true;
-  std::map<size_t, size_t> seq_nums; // seq_num from sender host_id
   std::map<size_t, std::set<size_t>> acked_messages; // Acked set of messages set<message_id> to receiver host_id
   std::map<size_t, std::set<size_t>> delivered_messages; // Delivered set of messages set<message_id> from sender host_id
   std::queue<TransportMessage> send_queue; // Queue of messages to send
   std::mutex queue_mutex;
+  std::mutex ack_mutex;
   std::thread sending_thread;
   std::thread receiving_thread;
+  bool continue_sending = true;
 
   std::thread start_sending()
   {
@@ -33,21 +33,27 @@ private:
     return std::thread([this]() {
       while (this->continue_sending)
       {
-        TransportMessage message;
+        TransportMessage tm;
         {
-          std::lock_guard<std::mutex> lock(queue_mutex);
+          std::lock_guard<std::mutex> queue_lock(queue_mutex);
           if (!send_queue.empty()) {
-            message = send_queue.front();
+            tm = send_queue.front();
             send_queue.pop();
+            std::cout << "plDequeue: " << tm << " (size: " << send_queue.size() << ")" << std::endl;
 
-            size_t receiver_id = message.get_receiver().get_id();
-            size_t seq_number = message.get_seq_number();
+            size_t receiver_id = tm.get_receiver().get_id();
+            size_t seq_number = tm.get_seq_number();
 
-            if (acked_messages[receiver_id].count(seq_number) == 0) {
-              // Send message
-              // std::cout << "plSend: " << message << std::endl;
-              this->link.send(message);
-              send_queue.push(message);
+            bool already_acked;
+            {
+              std::lock_guard<std::mutex> ack_lock(ack_mutex);
+              already_acked = acked_messages[receiver_id].count(seq_number) > 0;
+            }
+
+            if (!already_acked) {
+              std::cout << "plSend: " << tm << std::endl;
+              this->link.send(tm);
+              send_queue.push(tm);
             }
           }
         }
@@ -56,37 +62,37 @@ private:
   }
 
 
-  std::thread start_receiving(std::function<void(TransportMessage)> deliver)
+  std::thread start_receiving(std::function<void(TransportMessage)> handler)
   {
     // std::cout << "Starting receiving on " << host.get_address().to_string() << "\n";
 
-    return std::thread([this, deliver]() {
+    return std::thread([this, handler]() {
       this->link.start_receiving(
-        [this, deliver](TransportMessage message) {
+        [this, handler](TransportMessage tm) {
+          std::cout << "plRecv: " << tm << std::endl;
           // Get sender and message id
-          size_t sender_id = message.get_sender().get_id();
-          size_t seq_number = message.get_seq_number();
-          if (message.get_is_ack())
+          size_t sender_id = tm.get_sender().get_id();
+          size_t seq_number = tm.get_seq_number();
+          if (tm.get_is_ack())
           {
-            // std::cout << "plRecvAck: " << message << std::endl;
-            acked_messages[sender_id].insert(seq_number);
+            std::cout << "Got ACK: " << tm << std::endl;
+            {
+              std::lock_guard<std::mutex> ack_lock(ack_mutex);
+              acked_messages[sender_id].insert(seq_number);
+            }
             return;
           }
 
           // Send ACK for received message
-          // std::cout << "Received message: " << message << std::endl;
-          TransportMessage ack = TransportMessage::create_ack(message);
+          TransportMessage ack = TransportMessage::create_ack(tm);
+          std::cout << "Send ACK: " << ack << std::endl;
           this->link.send(ack);
-          // std::cout << "plSendACK: " << ack << std::endl;
 
           // Deliver only if not previously delivered
+          if (delivered_messages[sender_id].insert(seq_number).second)
           {
-            std::lock_guard<std::mutex> lock(queue_mutex);
-            if (delivered_messages[sender_id].insert(seq_number).second)
-            {
-              // std::cout << "plDeliver: " << message << std::endl;
-              deliver(message);
-            }
+            std::cout << "plDeliver: " << tm << std::endl;
+            handler(tm);
           }
       });
     });
@@ -98,7 +104,6 @@ public:
     std::cout << "Setting up perfect link at " << host.get_address().to_string() << std::endl;
     for (const auto &host : hosts.get_hosts()) {
       if (host.get_id() != this->host.get_id()) {
-        seq_nums[host.get_id()] = 1;
         acked_messages[host.get_id()];
         delivered_messages[host.get_id()];
       }
@@ -109,13 +114,18 @@ public:
   }
 
   void send(Host receiver, DataMessage message) {
+    // Serialize data message
     uint64_t length = 0;
     auto payload = message.serialize(length);
 
-    size_t seq_number = seq_nums[receiver.get_id()]++;
-    TransportMessage transport_message(seq_number, host, receiver, std::move(payload), length, false);
+    // Create transport message
+    TransportMessage tm(host, receiver, std::move(payload), length);
 
-    send_queue.push(transport_message);
+    std::cout << "plEnqueue: " << tm << std::endl;
+    {
+      std::lock_guard<std::mutex> queue_lock(queue_mutex);
+      send_queue.push(tm);
+    }
   }
   
   void broadcast(DataMessage message) {

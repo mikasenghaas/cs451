@@ -30,7 +30,7 @@ public:
 
   void send(TransportMessage tm)
   {
-    // std::cout << "flSend: " << tm << std::endl;
+    std::cout << "flSend: " << tm << std::endl;
     
     // Serialize message
     uint64_t payload_length;
@@ -44,35 +44,29 @@ public:
 
   void start_receiving(std::function<void(TransportMessage)> handler)
   {
-    // std::cout << "Starting receive on " << host.get_address().to_string() << std::endl;
-    // Create receive buffer
-    char buffer[MAX_RECEIVE_BUFFER_SIZE];
+    // std::cout << "Starting receiving on " << host.get_address().to_string() << "\n";
 
-    // Setup source address
+    char buffer[MAX_RECEIVE_BUFFER_SIZE];
     sockaddr_in source;
     socklen_t source_length = sizeof(source);
 
-    // Receive message
-    auto num_bytes = recvfrom(this->sockfd, buffer, MAX_RECEIVE_BUFFER_SIZE, 0,
-                                    reinterpret_cast<sockaddr *>(&source), &source_length);
-
-    while (num_bytes >= 0)
+    while (this->continue_receiving)
     {
-      // Deserialize message
-      TransportMessage tm = TransportMessage::deserialize(buffer, num_bytes);
-      // std::cout << "flRecv: " << tm << std::endl;
-      handler(tm);
-
-      // Stop receiving if flag is set
-      if (!this->continue_receiving)
-      {
+      // Receive message
+      auto num_bytes = recvfrom(this->sockfd, buffer, MAX_RECEIVE_BUFFER_SIZE, 0,
+                               reinterpret_cast<sockaddr *>(&source), &source_length);
+      
+      if (num_bytes < 0) {
         break;
       }
 
-      // Receive next message
-      num_bytes = recvfrom(this->sockfd, buffer, MAX_RECEIVE_BUFFER_SIZE, 0,
-                   reinterpret_cast<sockaddr *>(&source), &source_length);
+      // Deserialize message
+      TransportMessage tm = TransportMessage::deserialize(buffer, num_bytes);
+      std::cout << "flDeliver: " << tm << std::endl;
+      handler(tm);
     }
+
+    std::cout << "Closing socket at " << host.get_address().to_string() << "\n";
 
     // Close socket
     close(this->sockfd);

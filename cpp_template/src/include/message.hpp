@@ -27,7 +27,7 @@ public:
     static DataMessage deserialize(const char *buffer, size_t buffer_size) {
         return DataMessage(std::string(buffer, buffer_size));
     }
-};
+}; 
 
 /**
  * @brief Message
@@ -47,7 +47,10 @@ private:
     Host receiver;
     std::shared_ptr<char[]> payload;
     size_t length;
-    bool is_ack{false};
+    bool is_ack;
+    
+    // Next sequence number
+    static std::atomic_uint32_t next_id; 
 
     // Encode payload
     template <typename T>
@@ -83,8 +86,8 @@ public:
     // Default constructor
     TransportMessage() = default;
     
-    // Main constructor
-    TransportMessage(size_t seq_number, Host sender, Host receiver, std::shared_ptr<char[]> payload, size_t length, bool is_ack) : seq_number(seq_number), sender(sender), receiver(receiver), payload(payload), length(length), is_ack(is_ack) {}
+    // Main constructor (from serialized DataMessage)
+    TransportMessage(Host sender, Host receiver, std::shared_ptr<char[]> payload, size_t length) : seq_number(next_id++), sender(sender), receiver(receiver), payload(payload), length(length), is_ack(false) {}
 
     // Serialize message
     std::unique_ptr<char[]> serialize(uint64_t &total_length) const
@@ -157,20 +160,20 @@ public:
         }
 
         // Create a message with the payload
-        TransportMessage msg;
-        msg.seq_number = seq_number;
-        msg.sender = sender;
-        msg.receiver = receiver;
-        msg.length = payload_length;
-        msg.is_ack = is_ack;
+        TransportMessage tm;
+        tm.seq_number = seq_number;
+        tm.sender = sender;
+        tm.receiver = receiver;
+        tm.length = payload_length;
+        tm.is_ack = is_ack;
 
         if (payload_length > 0)
         {
-            msg.payload = std::shared_ptr<char[]>(new char[payload_length]);
-            std::memcpy(msg.payload.get(), buffer + offset, payload_length);
+            tm.payload = std::shared_ptr<char[]>(new char[payload_length]);
+            std::memcpy(tm.payload.get(), buffer + offset, payload_length);
         }
 
-        return msg;
+        return tm;
     }
 
     // Getters
@@ -181,20 +184,20 @@ public:
     size_t get_length() const { return length; }
     bool get_is_ack() const { return is_ack; }
 
-    // Setters
-    void set_seq_number(size_t seq_number) { this->seq_number = seq_number; }
-
     template <typename T>
     void set_payload(const T &value) { payload = encode_payload(value, length); }
 
     // Static methods
-    static TransportMessage create_ack(const TransportMessage msg)
+    static TransportMessage create_ack(const TransportMessage tm)
     {
         TransportMessage ack;
-        ack.seq_number = msg.seq_number;
-        ack.sender = msg.receiver;
-        ack.receiver = msg.sender;
+        ack.seq_number = tm.seq_number;
+        ack.sender = tm.receiver;
+        ack.receiver = tm.sender;
         ack.is_ack = true;
+        ack.length = 0;
+        ack.payload = nullptr;
+        
         return ack;
     }
 
@@ -223,3 +226,6 @@ public:
     friend std::ostream& operator<<(std::ostream& os, const TransportMessage& msg) { return os << msg.to_string(); }
 
 };
+
+// Next sequence number
+std::atomic_uint32_t TransportMessage::next_id{0};

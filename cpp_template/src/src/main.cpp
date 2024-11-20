@@ -63,19 +63,19 @@ static void stop(int)
   exit(0);
 }
 
-static void send_handler(DataMessage msg)
+static void send_handler(DataMessage m)
 {
   // std::string message = std::string(msg.get_payload(), msg.get_length());
   // std::cout << "b " << msg.get_message() << std::endl;
-  global_output_file->write("b " + msg.get_message() + "\n");
+  global_output_file->write("b " + m.get_message() + "\n");
 }
 
 // Define message handler before main
-static void deliver_handler(TransportMessage msg)
+static void deliver_handler(TransportMessage tm)
 {
-  std::string message = std::string(msg.get_payload(), msg.get_length());
-  // std::cout << "Delivered message from " << msg.get_sender().get_id() << ": " << message << std::endl;
-  global_output_file->write("d " + std::to_string(msg.get_sender().get_id()) + " " + message + "\n");
+  std::string message = std::string(tm.get_payload(), tm.get_length());
+  std::cout << "Delivered message from " << tm.get_sender().get_id() << ": " << tm << std::endl;
+  global_output_file->write("d " + std::to_string(tm.get_sender().get_id()) + " " + message + "\n");
 }
 
 int main(int argc, char **argv)
