@@ -51,10 +51,10 @@ public:
     }
 
     // Buffer is ready to send
-    size_t id = seq_nums[receiver.get_id()]++;
+    size_t seq_number = seq_nums[receiver.get_id()]++;
     auto shared_payload = std::shared_ptr<char[]>(new char[payload_length]);
     std::memcpy(shared_payload.get(), payload.get(), payload_length);
-    TransportMessage transport_message(id, host, receiver, shared_payload, payload_length, false);
+    TransportMessage transport_message(seq_number, host, receiver, shared_payload, payload_length, false);
     send_queue.push(transport_message);
   }
 
@@ -73,9 +73,9 @@ public:
             send_queue.pop();
 
             size_t receiver_id = message.get_receiver().get_id();
-            size_t id = message.get_id();
+            size_t seq_number = message.get_seq_number();
 
-            if (acked_messages[receiver_id].count(id) == 0) {
+            if (acked_messages[receiver_id].count(seq_number) == 0) {
               // Send message
               // std::cout << "Sending message " << message << std::endl;
               this->link.send(message);
@@ -97,11 +97,11 @@ public:
         [this, handler](TransportMessage message) {
           // Get sender and message id
           size_t sender_id = message.get_sender().get_id();
-          size_t id = message.get_id();
+          size_t seq_number = message.get_seq_number();
           if (message.get_is_ack())
           {
             // std::cout << "Received ACK: " << message << std::endl;
-            acked_messages[sender_id].insert(id);
+            acked_messages[sender_id].insert(seq_number);
             return;
           }
 
@@ -114,7 +114,7 @@ public:
           // Deliver only if not previously delivered
           {
             std::lock_guard<std::mutex> lock(queue_mutex);
-            if (delivered_messages[sender_id].insert(id).second)
+            if (delivered_messages[sender_id].insert(seq_number).second)
             {
               std::vector<DataMessage> data_messages = SendBuffer::deserialize(message.get_payload(), message.get_length());
               for (auto data_message : data_messages) {

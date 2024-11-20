@@ -42,7 +42,7 @@ public:
 */
 class TransportMessage {
 private:
-    size_t id;
+    size_t seq_number;
     Host sender;
     Host receiver;
     std::shared_ptr<char[]> payload;
@@ -75,7 +75,7 @@ private:
     // Get minimum serialized size
     static size_t get_min_serialized_size()
     {
-        return sizeof(id) + sizeof(Host) * 2 + sizeof(length) + sizeof(is_ack);
+        return sizeof(seq_number) + sizeof(Host) * 2 + sizeof(length) + sizeof(is_ack);
     }
 
 
@@ -84,7 +84,7 @@ public:
     TransportMessage() = default;
     
     // Main constructor
-    TransportMessage(size_t id, Host sender, Host receiver, std::shared_ptr<char[]> payload, size_t length, bool is_ack) : id(id), sender(sender), receiver(receiver), payload(payload), length(length), is_ack(is_ack) {}
+    TransportMessage(size_t seq_number, Host sender, Host receiver, std::shared_ptr<char[]> payload, size_t length, bool is_ack) : seq_number(seq_number), sender(sender), receiver(receiver), payload(payload), length(length), is_ack(is_ack) {}
 
     // Serialize message
     std::unique_ptr<char[]> serialize(uint64_t &total_length) const
@@ -97,8 +97,8 @@ public:
         size_t offset = 0;
 
         // Serialize
-        std::memcpy(buffer.get() + offset, &id, sizeof(id));
-        offset += sizeof(id);
+        std::memcpy(buffer.get() + offset, &seq_number, sizeof(seq_number));
+        offset += sizeof(seq_number);
         std::memcpy(buffer.get() + offset, &sender, sizeof(sender));
         offset += sizeof(sender);
         std::memcpy(buffer.get() + offset, &receiver, sizeof(receiver));
@@ -125,10 +125,10 @@ public:
         {
             throw std::runtime_error("Buffer too small for deserialization");
         }
-        // Deserialize id
-        size_t id;
-        std::memcpy(&id, buffer + offset, sizeof(id));
-        offset += sizeof(id);
+        // Deserialize seq_number
+        size_t seq_number;
+        std::memcpy(&seq_number, buffer + offset, sizeof(seq_number));
+        offset += sizeof(seq_number);
 
         // Deserialize sender
         Host sender;
@@ -158,7 +158,7 @@ public:
 
         // Create a message with the payload
         TransportMessage msg;
-        msg.id = id;
+        msg.seq_number = seq_number;
         msg.sender = sender;
         msg.receiver = receiver;
         msg.length = payload_length;
@@ -174,7 +174,7 @@ public:
     }
 
     // Getters
-    size_t get_id() const { return id; }
+    size_t get_seq_number() const { return seq_number; }
     Host get_sender() const { return sender; }
     Host get_receiver() const { return receiver; }
     const char *get_payload() const { return payload.get(); }
@@ -182,12 +182,10 @@ public:
     bool get_is_ack() const { return is_ack; }
 
     // Setters
-    void set_id(size_t id) { this->id = id; }
+    void set_seq_number(size_t seq_number) { this->seq_number = seq_number; }
+
     template <typename T>
-    void set_payload(const T &value)
-    {
-        payload = encode_payload(value, length);
-    }
+    void set_payload(const T &value) { payload = encode_payload(value, length); }
 
     // Static methods
     static TransportMessage create_ack(const TransportMessage msg)
@@ -214,7 +212,7 @@ public:
     // String representation
     std::string to_string() const {
         std::string result = "TransportMessage(";
-        result += "id=" + std::to_string(id);
+        result += "seq_number=" + std::to_string(seq_number);
         result += ", sender=" + std::to_string(sender.get_id());
         result += ", receiver=" + std::to_string(receiver.get_id()); 
         result += ", is_ack=" + std::string(is_ack ? "true" : "false");

@@ -26,8 +26,8 @@ private:
 
 public:
     BestEffortBroadcast(const Host local_host, const Hosts hosts, std::function<void(DataMessage)> send_handler, std::function<void(DataMessage, Host)> deliver_handler): local_host(local_host), hosts(hosts), pl(local_host, hosts), send_handler(send_handler), deliver_handler(deliver_handler) {
-        this->pl.start_sending();
         this->pl.start_receiving(deliver_handler);
+        this->pl.start_sending();
     }
 
     void broadcast(const DataMessage &message, bool immediate = false) {
