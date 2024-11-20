@@ -118,7 +118,7 @@ public:
     send_queue.push(transport_message);
   }
   
-  void broadcast(DataMessage message, const bool &immediate = false) {
+  void broadcast(DataMessage message) {
     for (const auto &host : hosts.get_hosts()) {
       send(host, message);
     }

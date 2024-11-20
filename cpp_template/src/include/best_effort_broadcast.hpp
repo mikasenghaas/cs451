@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "hosts.hpp"
 #include "perfect_link.hpp"
 
@@ -18,25 +20,13 @@
  */
 class BestEffortBroadcast {
 private:
-    Host local_host;
-    Hosts hosts;
     PerfectLink pl;
-    std::function<void(DataMessage)> send_handler;
-    std::function<void(DataMessage, Host)> deliver_handler;
 
 public:
-    BestEffortBroadcast(const Host local_host, const Hosts hosts, std::function<void(DataMessage)> send_handler, std::function<void(DataMessage, Host)> deliver_handler): local_host(local_host), hosts(hosts), pl(local_host, hosts), send_handler(send_handler), deliver_handler(deliver_handler) {
-        this->pl.start_receiving(deliver_handler);
-        this->pl.start_sending();
-    }
+    BestEffortBroadcast(const Host local_host, const Hosts hosts, std::function<void(TransportMessage)> deliver): pl(local_host, hosts, deliver) {}
 
-    void broadcast(const DataMessage &message, bool immediate = false) {
-        this->send_handler(message);
-        for (auto host : this->hosts.get_hosts()) {
-            size_t receiver_id = host.get_id();
-            Host receiver_host(receiver_id, this->hosts.get_address(receiver_id));
-            this->pl.send(message, receiver_host, immediate);
-        }
+    void broadcast(const DataMessage message) {
+        this->pl.broadcast(message);
     }
 
     void shutdown() {

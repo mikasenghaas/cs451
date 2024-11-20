@@ -28,11 +28,7 @@ public:
     this->sockfd = create_socket();
   }
 
-  /*
-  * @brief Send a message over the network (accumulates up to 8 messages to the
-  * same host in a send buffer)
-  */
-  void send(TransportMessage tm, const bool immediate = false)
+  void send(TransportMessage tm)
   {
     // std::cout << "flSend: " << tm << std::endl;
     
@@ -46,9 +42,6 @@ public:
                 reinterpret_cast<sockaddr *>(&address), sizeof(address));
   }
 
-  /* @brief Receives messages until the stop_receiving() method is called; for every transport message received,
-   * the handler is called.
-   */
   void start_receiving(std::function<void(TransportMessage)> handler)
   {
     // std::cout << "Starting receive on " << host.get_address().to_string() << std::endl;

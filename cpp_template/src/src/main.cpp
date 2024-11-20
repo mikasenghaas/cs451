@@ -30,12 +30,11 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-// #include "best_effort_broadcast.hpp"
-#include "perfect_link.hpp"
+#include "best_effort_broadcast.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static PerfectLink *global_pl = nullptr;
+static BestEffortBroadcast *global_beb = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -48,10 +47,10 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_pl != nullptr)
+  if (global_beb != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_pl->shutdown();
+    global_beb->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -72,7 +71,7 @@ static void send_handler(DataMessage msg)
 }
 
 // Define message handler before main
-static void deliver(TransportMessage msg)
+static void deliver_handler(TransportMessage msg)
 {
   std::string message = std::string(msg.get_payload(), msg.get_length());
   // std::cout << "Delivered message from " << msg.get_sender().get_id() << ": " << message << std::endl;
@@ -123,10 +122,8 @@ int main(int argc, char **argv)
   std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
   // Setup best-effort broadcast
-  // BestEffortBroadcast beb(local_host, hosts, send_handler, deliver_handler);
-  // global_beb = &beb;
-  PerfectLink pl(local_host, hosts, deliver);
-  global_pl = &pl;
+  BestEffortBroadcast beb(local_host, hosts, deliver_handler);
+  global_beb = &beb;
 
   // Start broadcasting and delivering messages
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
@@ -134,7 +131,7 @@ int main(int argc, char **argv)
 
   for (int i = 1; i <= config.get_message_count(); i++) {
     DataMessage message(std::to_string(i));
-    pl.broadcast(message, true);
+    beb.broadcast(message);
     send_handler(message);
   }
 
