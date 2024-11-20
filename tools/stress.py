@@ -514,13 +514,14 @@ if __name__ == "__main__":
             help="Maximum number (because it can crash) of messages that each process can broadcast",
         )
 
-    parser_perfect.add_argument(
-        "-t",
-        "--timeout",
-        type=positive_int,
-        dest="timeout",
-        help="Timeout in seconds after which the program will terminate",
-    )
+        # TODO: Figure out why this was only for perfect links
+        subparser.add_argument(
+            "-t",
+            "--timeout",
+            type=positive_int,
+            dest="timeout",
+            help="Timeout in seconds after which the program will terminate",
+        )
     
     parser_agreement.add_argument(
         "-n",

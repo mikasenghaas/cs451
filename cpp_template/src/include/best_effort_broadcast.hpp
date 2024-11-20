@@ -1,3 +1,8 @@
+#pragma once
+
+#include "hosts.hpp"
+#include "perfect_link.hpp"
+
 
 /**
  * @brief Best-Effort Broadcast (BEB) using Perfect Link (PL)
@@ -12,4 +17,33 @@
  *   sent by some process.
  */
 class BestEffortBroadcast {
+private:
+    Host local_host;
+    Hosts hosts;
+    PerfectLink pl;
+    std::function<void(DataMessage)> send_handler;
+    std::function<void(DataMessage, Host)> deliver_handler;
+    std::thread sender_thread;
+    std::thread receiver_thread;
+
+public:
+    BestEffortBroadcast(const Host local_host, const Hosts hosts, std::function<void(DataMessage)> send_handler, std::function<void(DataMessage, Host)> deliver_handler): local_host(local_host), hosts(hosts), pl(local_host, hosts), send_handler(send_handler), deliver_handler(deliver_handler) {
+        this->sender_thread = pl.start_sending();
+        this->receiver_thread = pl.start_receiving(deliver_handler);
+    }
+
+    void send(const DataMessage &message, bool immediate = false) {
+        this->send_handler(message);
+        for (auto host : this->hosts.get_hosts()) {
+            size_t receiver_id = host.get_id();
+            Host receiver_host(receiver_id, this->hosts.get_address(receiver_id));
+            this->pl.send(message, receiver_host, immediate);
+        }
+    }
+
+    void shutdown() {
+        this->pl.shutdown();
+        this->sender_thread.join();
+        this->receiver_thread.join();
+    }
 };

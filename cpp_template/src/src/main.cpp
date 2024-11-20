@@ -50,7 +50,7 @@ static void stop(int)
   if (global_beb != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    // global_beb->shutdown();
+    global_beb->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -63,10 +63,16 @@ static void stop(int)
   exit(0);
 }
 
-// Define message handler before main
-static void write_message(DataMessage msg, Host sender)
+static void send_handler(DataMessage msg)
 {
-  // std::cout << "Received message from " << sender.get_id() << ": " << msg.get_message() << std::endl;
+  std::cout << "Broadcast message " << msg.get_message() << std::endl;
+  global_output_file->write("b " + msg.get_message() + "\n");
+}
+
+// Define message handler before main
+static void deliver_handler(DataMessage msg, Host sender)
+{
+  std::cout << "Delivered message from " << sender.get_id() << ": " << msg.get_message() << std::endl;
   global_output_file->write("d " + std::to_string(sender.get_id()) + " " + msg.get_message() + "\n");
 }
 
@@ -108,35 +114,30 @@ int main(int argc, char **argv)
   Host local_host(local_id, hosts.get_address(local_id));
   std::cout << "Local address: " << local_host.get_address().to_string() << "\n\n";
 
-  // Setup receiver address
-  // size_t receiver_id = config.get_receiver_id();
-  // Host receiver_host(receiver_id, hosts.get_address(receiver_id));
-  // std::cout << "Receiver address: " << receiver_host.get_address().to_string() << "\n\n";
+  // Open output file
+  OutputFile output_file(parser.outputPath());
+  global_output_file = &output_file;
+  std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
   // Setup best-effort broadcast
-  // BestEffortBroadcast beb(local_host, hosts);
-  // global_beb = &beb;
-  // std::cout << "Set up best effort broadcast at " << local_host.get_address().to_string() << "\n\n";
-
-  // // Open output file
-  // OutputFile output_file(parser.outputPath());
-  // global_output_file = &output_file;
-  // std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
+  std::cout << "Setting up best effort broadcast at " << local_host.get_address().to_string() << "\n\n";
+  BestEffortBroadcast beb(local_host, hosts, send_handler, deliver_handler);
+  global_beb = &beb;
 
   // Write timestamp to stdout
-  std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
+  // std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
 
   std::cout << "Broadcasting and delivering messages...\n\n";
 
-  // Start receiving and sending thread
-  // auto receiver_thread = pl.start_receiving(write_message);
-  // auto sender_thread = pl.start_sending();
+  for (int i = 1; i <= config.get_message_count(); i++) {
+    DataMessage message(std::to_string(i));
+    beb.send(message, i == config.get_message_count() ? true : false);
+  }
 
   // Infinite loop to keep the program running
-  // while (!should_stop)
-  // {
-  //   std::this_thread::sleep_for(std::chrono::hours(1));
-  // }
+  while (!should_stop) {
+    std::this_thread::sleep_for(std::chrono::hours(1));
+  }
 
   // Join threads
   // receiver_thread.join();

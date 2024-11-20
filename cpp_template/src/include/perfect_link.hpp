@@ -36,13 +36,13 @@ public:
     }
   }
 
-  void send(DataMessage message, Host receiver, const bool &immediately = false)
+  void send(DataMessage message, Host receiver, const bool &immediate = false)
   {
     std::lock_guard<std::mutex> lock(queue_mutex);
 
     // Add message to send buffer
     uint64_t payload_length;
-    auto payload = send_buffer.add_message(receiver, message, payload_length, immediately);
+    auto payload = send_buffer.add_message(receiver, message, payload_length, immediate);
 
     if (payload_length == 0) {
       return;
@@ -54,7 +54,6 @@ public:
     std::memcpy(shared_payload.get(), payload.get(), payload_length);
     TransportMessage transport_message(id, host, receiver, shared_payload, payload_length, false);
     send_queue.push(transport_message);
-    // std::cout << "Added message " << id << " to queue (size=" << send_queue.size() << ")" << std::endl;
   }
 
   std::thread start_sending()
