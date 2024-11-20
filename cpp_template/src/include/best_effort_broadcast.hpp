@@ -43,7 +43,5 @@ public:
 
     void shutdown() {
         this->pl.shutdown();
-        this->sender_thread.join();
-        this->receiver_thread.join();
     }
 };
