@@ -30,11 +30,11 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "perfect_link.hpp"
+#include "best_effort_broadcast.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static PerfectLink *global_link = nullptr;
+static BestEffortBroadcast *global_beb = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -47,10 +47,10 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_link != nullptr)
+  if (global_beb != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_link->shutdown();
+    // global_beb->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -100,8 +100,8 @@ int main(int argc, char **argv)
   std::cout << result << "\n";
 
   // Load the config file
-  Config config(parser.configPath());
-  std::cout << "\nLoaded config (m=" << config.get_message_count() << ", p=" << config.get_receiver_id() << ")\n\n";
+  FIFOUniformReliableBroadcastConfig config(parser.configPath());
+  std::cout << "\nLoaded config (m=" << config.get_message_count() << ")\n\n";
 
   // Setup local address
   size_t local_id = static_cast<uint8_t>(parser.id());
@@ -109,23 +109,19 @@ int main(int argc, char **argv)
   std::cout << "Local address: " << local_host.get_address().to_string() << "\n\n";
 
   // Setup receiver address
-  size_t receiver_id = config.get_receiver_id();
-  Host receiver_host(receiver_id, hosts.get_address(receiver_id));
-  std::cout << "Receiver address: " << receiver_host.get_address().to_string() << "\n\n";
+  // size_t receiver_id = config.get_receiver_id();
+  // Host receiver_host(receiver_id, hosts.get_address(receiver_id));
+  // std::cout << "Receiver address: " << receiver_host.get_address().to_string() << "\n\n";
 
-  // Setup fair loss link
-  PerfectLink pl(local_host, hosts);
-  global_link = &pl;
-  std::cout << "Set up perfect link at " << local_host.get_address().to_string() << "\n\n";
+  // Setup best-effort broadcast
+  // BestEffortBroadcast beb(local_host, hosts);
+  // global_beb = &beb;
+  // std::cout << "Set up best effort broadcast at " << local_host.get_address().to_string() << "\n\n";
 
-  // Open output file
-  OutputFile output_file(parser.outputPath());
-  global_output_file = &output_file;
-  std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
-
-  // Check if this is the receiver
-  bool is_receiver = parser.id() == config.get_receiver_id();
-  std::cout << "Is receiver: " << (is_receiver ? "Yes" : "No") << "\n\n";
+  // // Open output file
+  // OutputFile output_file(parser.outputPath());
+  // global_output_file = &output_file;
+  // std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
   // Write timestamp to stdout
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
@@ -133,29 +129,18 @@ int main(int argc, char **argv)
   std::cout << "Broadcasting and delivering messages...\n\n";
 
   // Start receiving and sending thread
-  auto receiver_thread = pl.start_receiving(write_message);
-  auto sender_thread = pl.start_sending();
-
-  // Send messages if sender
-  if (!is_receiver)
-  {
-    for (int i = 1; i <= config.get_message_count(); i++)
-    {
-      DataMessage message(std::to_string(i));
-      pl.send(message, receiver_host, i == config.get_message_count() ? true : false);
-      output_file.write("b " + message.get_message() + "\n");
-    }
-  }
+  // auto receiver_thread = pl.start_receiving(write_message);
+  // auto sender_thread = pl.start_sending();
 
   // Infinite loop to keep the program running
-  while (!should_stop)
-  {
-    std::this_thread::sleep_for(std::chrono::hours(1));
-  }
+  // while (!should_stop)
+  // {
+  //   std::this_thread::sleep_for(std::chrono::hours(1));
+  // }
 
   // Join threads
-  receiver_thread.join();
-  sender_thread.join();
+  // receiver_thread.join();
+  // sender_thread.join();
 
   return 0;
 }
