@@ -130,7 +130,7 @@ int main(int argc, char **argv)
 
   for (int i = 1; i <= config.get_message_count(); i++) {
     DataMessage message(std::to_string(i));
-    beb.send(message, i == config.get_message_count() ? true : false);
+    beb.broadcast(message, i == config.get_message_count() ? true : false);
   }
 
   // Infinite loop to keep the program running

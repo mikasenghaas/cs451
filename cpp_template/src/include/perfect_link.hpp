@@ -24,6 +24,8 @@ private:
   bool has_pending_message = false;
   std::queue<TransportMessage> send_queue; // Queue of messages to send
   std::mutex queue_mutex;
+  std::thread sender_thread;
+  std::thread receiver_thread;
 
 public:
   PerfectLink(Host host, Hosts hosts) : host(host), hosts(hosts), link(host), send_buffer(hosts, MAX_SEND_BUFFER_SIZE) {
@@ -56,11 +58,11 @@ public:
     send_queue.push(transport_message);
   }
 
-  std::thread start_sending()
+  void start_sending()
   {
     std::cout << "Starting sending on " << host.get_address().to_string() << "\n";
 
-    return std::thread([this]() {
+    this->sender_thread = std::thread([this]() {
       while (this->continue_sending)
       {
         TransportMessage message;
@@ -86,11 +88,11 @@ public:
   }
 
 
-  std::thread start_receiving(std::function<void(DataMessage, Host)> handler)
+  void start_receiving(std::function<void(DataMessage, Host)> handler)
   {
     std::cout << "Starting receiving on " << host.get_address().to_string() << "\n";
 
-    auto receiver_function = [this, handler]() {
+    this->receiver_thread = std::thread([this, handler]() {
       this->link.start_receiving(
         [this, handler](TransportMessage message) {
           // Get sender and message id
@@ -122,8 +124,7 @@ public:
             }
           }
       });
-    };
-    return std::thread(receiver_function);
+    });
   }
 
   void shutdown()

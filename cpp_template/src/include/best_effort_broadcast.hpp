@@ -23,16 +23,14 @@ private:
     PerfectLink pl;
     std::function<void(DataMessage)> send_handler;
     std::function<void(DataMessage, Host)> deliver_handler;
-    std::thread sender_thread;
-    std::thread receiver_thread;
 
 public:
     BestEffortBroadcast(const Host local_host, const Hosts hosts, std::function<void(DataMessage)> send_handler, std::function<void(DataMessage, Host)> deliver_handler): local_host(local_host), hosts(hosts), pl(local_host, hosts), send_handler(send_handler), deliver_handler(deliver_handler) {
-        this->sender_thread = pl.start_sending();
-        this->receiver_thread = pl.start_receiving(deliver_handler);
+        this->pl.start_sending();
+        this->pl.start_receiving(deliver_handler);
     }
 
-    void send(const DataMessage &message, bool immediate = false) {
+    void broadcast(const DataMessage &message, bool immediate = false) {
         this->send_handler(message);
         for (auto host : this->hosts.get_hosts()) {
             size_t receiver_id = host.get_id();
