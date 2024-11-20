@@ -124,7 +124,7 @@ int main(int argc, char **argv)
   global_output_file = &output_file;
   std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
-  // Setup best-effort broadcast
+  // Setup broadcast
   BestEffortBroadcast beb(local_host, hosts, deliver_handler);
   global_beb = &beb;
 

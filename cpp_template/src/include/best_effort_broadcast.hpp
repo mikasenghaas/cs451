@@ -1,10 +1,11 @@
 #pragma once
 
+#include <iostream>
 #include <functional>
 
 #include "hosts.hpp"
+#include "message.hpp"
 #include "perfect_link.hpp"
-
 
 /**
  * @brief Best-Effort Broadcast (BEB) using Perfect Link (PL)

@@ -2,9 +2,9 @@
 
 #include <set>
 #include <map>
+#include <iostream>
 #include <functional>
 
-#include "host.hpp"
 #include "hosts.hpp"
 #include "best_effort_broadcast.hpp"
 
@@ -26,28 +26,23 @@ class UniformReliableBroadcast {
 private:
     Hosts hosts;
     BestEffortBroadcast beb;
-    std::function<void(DataMessage)> send_handler;
-    std::function<void(DataMessage, Host)> deliver_handler;
-    std::map<size_t, std::set<size_t>> pending_messages; // Set of message IDs of pending messages to sender host_id
-
+    std::map<size_t, std::set<size_t>> pending_messages;
 
 public:
     UniformReliableBroadcast(Host local_host, Hosts hosts, std::function<void(TransportMessage)> handler): hosts(hosts), beb(local_host, hosts, handler) {
-        for (auto host: hosts.get_hosts()) {
-            pending_messages[host.get_id()];
+        std::cout << "Setting up uniform reliable broadcast at " << local_host.get_address().to_string() << std::endl;
+        for (auto host: this->hosts.get_hosts()) {
+            this->pending_messages[host.get_id()];
         }
     }
 
-    void broadcast(const DataMessage &message, bool immediate = false) {
-        // Problem: I broadcast a message at which point I only know the std::string
-        // I call bebBroadcast which iterates over hosts to call plSend
-        // plSend adds to a send buffer
-        // After 8 messages are in buffer, a TransportMessage with an seq_number is created
-        // However, I need to know the seq number before so I can remember that the message with this seq number is pending
+    void broadcast(Message &m) {
+        auto bm = BroadcastMessage(m);
+        std::cout << "urbBroadcast" << bm << std::endl;
         for (auto host: this->hosts.get_hosts()) {
-            this->pending_messages[host.get_id()].insert(message.get_id());
+            this->pending_messages[host.get_id()].insert(bm.get_seq_number());
         }
-        this->beb.broadcast(message, immediate);
+        this->beb.broadcast(bm);
     }
 
     void shutdown() {

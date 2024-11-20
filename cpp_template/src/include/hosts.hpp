@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include <unordered_map>
+
 #include "host.hpp"
 #include "address.hpp"
 

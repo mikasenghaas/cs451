@@ -1,5 +1,8 @@
 #pragma once
 
+#include <atomic>
+#include <thread>
+
 // Project files
 #include "host.hpp"
 
@@ -99,18 +102,20 @@ public:
         MessageType message_type;
         std::memcpy(&message_type, this->payload.get(), sizeof(message_type));
 
+        // Skip the message type
+        size_t payload_offset = sizeof(MessageType);
+        size_t length = this->length - payload_offset;
+
+        // Get payload
+        auto payload = std::make_unique<char[]>(length);
+        std::memcpy(payload.get(), this->payload.get() + payload_offset, length);
+
         switch (message_type) {
         case MessageType::String: {
-            // Skip the message type when creating the StringMessage
-            size_t payload_offset = sizeof(MessageType);
-            size_t string_length = this->length - payload_offset;
-            
-            auto string_payload = std::make_unique<char[]>(string_length);
-            std::memcpy(string_payload.get(), 
-                       this->payload.get() + payload_offset,
-                       string_length);
-            
-            return std::make_unique<StringMessage>(std::move(string_payload), string_length);
+            return std::make_unique<StringMessage>(std::move(payload), length);
+        }
+        case MessageType::Broadcast: {
+            return std::make_unique<BroadcastMessage>(std::move(payload), length);
         }
         default:
             throw std::runtime_error("Unknown message type: " + std::to_string(static_cast<int>(message_type)));
@@ -121,7 +126,7 @@ public:
 };
 
 // Next sequence number
-std::atomic_uint32_t BroadcastMessage::next_id{0};
+std::atomic_uint32_t BroadcastMessage::next_id{1};
 
 /**
  * @brief TransportMessage
