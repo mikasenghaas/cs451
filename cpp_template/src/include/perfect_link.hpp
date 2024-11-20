@@ -113,10 +113,10 @@ public:
     this->sending_thread = start_sending();
   }
 
-  void send(Host receiver, DataMessage message) {
+  void send(Message &m, Host receiver) {
     // Serialize data message
     uint64_t length = 0;
-    auto payload = message.serialize(length);
+    auto payload = m.serialize(length);
 
     // Create transport message
     TransportMessage tm(host, receiver, std::move(payload), length);
@@ -128,12 +128,6 @@ public:
     }
   }
   
-  void broadcast(DataMessage message) {
-    for (const auto &host : hosts.get_hosts()) {
-      send(host, message);
-    }
-  }
-
   void shutdown()
   {
     this->link.stop_receiving();

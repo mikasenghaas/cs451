@@ -63,19 +63,22 @@ static void stop(int)
   exit(0);
 }
 
-static void send_handler(DataMessage m)
+static void send_handler(StringMessage m)
 {
-  // std::string message = std::string(msg.get_payload(), msg.get_length());
   // std::cout << "b " << msg.get_message() << std::endl;
   global_output_file->write("b " + m.get_message() + "\n");
 }
 
-// Define message handler before main
 static void deliver_handler(TransportMessage tm)
 {
-  std::string message = std::string(tm.get_payload(), tm.get_length());
-  std::cout << "Delivered message from " << tm.get_sender().get_id() << ": " << tm << std::endl;
-  global_output_file->write("d " + std::to_string(tm.get_sender().get_id()) + " " + message + "\n");
+  auto bm = BroadcastMessage(tm.get_payload(), tm.get_length());
+  auto msg = bm.get_message();
+  std::string message;
+  if (auto m = dynamic_cast<StringMessage*>(msg.get())) {
+      message = m->get_message();
+      // std::cout << "Delivered message " << message << " from " << tm.get_sender().get_id() << std::endl;
+      global_output_file->write("d " + std::to_string(tm.get_sender().get_id()) + " " + message + "\n");
+  }
 }
 
 int main(int argc, char **argv)
@@ -130,9 +133,9 @@ int main(int argc, char **argv)
   std::cout << "Broadcasting and delivering messages...\n\n";
 
   for (int i = 1; i <= config.get_message_count(); i++) {
-    DataMessage message(std::to_string(i));
-    beb.broadcast(message);
-    send_handler(message);
+    StringMessage m(std::to_string(i));
+    beb.broadcast(m);
+    send_handler(m);
   }
 
   // Infinite loop to keep the program running

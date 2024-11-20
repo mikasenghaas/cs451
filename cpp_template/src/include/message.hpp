@@ -3,34 +3,128 @@
 // Project files
 #include "host.hpp"
 
-class DataMessage 
-{
-private:
-    std::string message;
-    size_t length{0};
+enum class MessageType {
+    String,
+    Broadcast
+};
+
+class Message {
+protected:
+    MessageType type;
+    Message(const MessageType type) : type(type) {}
 
 public:
-    DataMessage(std::string message) : message(message) {
-        length = message.length();
-    }
+    virtual std::unique_ptr<char[]> serialize(uint64_t &length) = 0;
+    virtual std::string to_string() const = 0;
+    friend std::ostream& operator<<(std::ostream& os, const Message& msg) { return os << msg.to_string(); }
+};
+
+class StringMessage : public Message {
+private:
+    std::string message;
+
+public:
+    StringMessage(std::string message) : Message(MessageType::String), message(message) {}
+    StringMessage(std::unique_ptr<char[]> payload, size_t length) : StringMessage(std::string(payload.get(), length)) {}
 
     std::string get_message() const { return message; }
-    size_t get_length() const { return length; }
 
-    std::unique_ptr<char[]> serialize(uint64_t &total_length) const {
-        total_length = length;
-        auto buffer = std::unique_ptr<char[]>(new char[length]);
-        std::memcpy(buffer.get(), message.c_str(), length);
+    std::unique_ptr<char[]> serialize(uint64_t &total_length) {
+        total_length = sizeof(MessageType) + message.length();
+        auto buffer = std::unique_ptr<char[]>(new char[total_length]);
+        
+        // Write the message type first
+        std::memcpy(buffer.get(), &type, sizeof(MessageType));
+        std::memcpy(buffer.get() + sizeof(MessageType), message.c_str(), message.length());
+        
         return buffer;
     }
 
-    static DataMessage deserialize(const char *buffer, size_t buffer_size) {
-        return DataMessage(std::string(buffer, buffer_size));
-    }
+    std::string to_string() const { return "StringMessage(" + message + ")"; }
 }; 
 
+class BroadcastMessage : public Message {
+private:
+    static std::atomic_uint32_t next_id;
+    size_t seq_number;
+    size_t length;
+    std::unique_ptr<char[]> payload;
+
+public:
+    BroadcastMessage(Message &m) : Message(MessageType::Broadcast), seq_number(next_id++) {
+        this->payload = m.serialize(this->length);
+    }
+
+    BroadcastMessage(std::shared_ptr<char[]> payload, const uint64_t length)
+        : Message(MessageType::Broadcast), seq_number(next_id++) {
+        // We can skip the type
+        ssize_t offset = sizeof(this->type);
+
+        std::memcpy(&this->seq_number, payload.get() + offset,
+                    sizeof(this->seq_number));
+        offset += sizeof(this->seq_number);
+
+        std::memcpy(&this->length, payload.get() + offset,
+                    sizeof(this->length));
+        offset += sizeof(this->length);
+
+        this->payload = std::unique_ptr<char[]>(new char[this->length]);
+        std::memcpy(this->payload.get(), payload.get() + offset, this->length);
+    }
+
+    std::unique_ptr<char[]> serialize(uint64_t &total_length) {
+        total_length = sizeof(MessageType) + sizeof(seq_number) + sizeof(length) + this->length;
+
+        std::unique_ptr<char[]> payload(new char[total_length]);
+        size_t offset = 0;
+
+        std::memcpy(payload.get() + offset, &type, sizeof(MessageType));
+        offset += sizeof(MessageType);
+
+        std::memcpy(payload.get() + offset, &this->seq_number, sizeof(this->seq_number));
+        offset += sizeof(this->seq_number);
+
+        std::memcpy(payload.get() + offset, &this->length, sizeof(this->length));
+        offset += sizeof(this->length);
+
+        std::memcpy(payload.get() + offset, this->payload.get(), this->length);
+
+        return payload;
+    }
+
+    size_t get_seq_number() { return this->seq_number; }
+    size_t get_length() { return this->length; }
+    std::unique_ptr<Message> get_message() {
+        // Get message type
+        MessageType message_type;
+        std::memcpy(&message_type, this->payload.get(), sizeof(message_type));
+
+        switch (message_type) {
+        case MessageType::String: {
+            // Skip the message type when creating the StringMessage
+            size_t payload_offset = sizeof(MessageType);
+            size_t string_length = this->length - payload_offset;
+            
+            auto string_payload = std::make_unique<char[]>(string_length);
+            std::memcpy(string_payload.get(), 
+                       this->payload.get() + payload_offset,
+                       string_length);
+            
+            return std::make_unique<StringMessage>(std::move(string_payload), string_length);
+        }
+        default:
+            throw std::runtime_error("Unknown message type: " + std::to_string(static_cast<int>(message_type)));
+        }
+    }
+
+    std::string to_string() const { return "BroadcastMessage(seq_number=" + std::to_string(this->seq_number) + ")"; }
+};
+
+// Next sequence number
+std::atomic_uint32_t BroadcastMessage::next_id{0};
+
 /**
- * @brief Message
+ * @brief TransportMessage
  *
  * @details Serialized size:
  * Host+Receiver: 2*(ID: 8B + Address: 8B) = 32B
@@ -180,7 +274,7 @@ public:
     size_t get_seq_number() const { return seq_number; }
     Host get_sender() const { return sender; }
     Host get_receiver() const { return receiver; }
-    const char *get_payload() const { return payload.get(); }
+    std::shared_ptr<char[]> get_payload() const { return payload; }
     size_t get_length() const { return length; }
     bool get_is_ack() const { return is_ack; }
 
@@ -199,18 +293,6 @@ public:
         ack.payload = nullptr;
         
         return ack;
-    }
-
-    // Get payload string
-    std::string get_payload_string() const
-    {
-        // Note: Use for  payloads (Milestone 1)
-        if (length == sizeof(int))
-        {
-            return std::to_string(decode_payload<int>());
-        }
-        std::cout << "Unknown payload type\n";
-        return "Unknown payload type";
     }
 
     // String representation

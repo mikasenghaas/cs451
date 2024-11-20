@@ -1,7 +1,7 @@
 #pragma once
 
+#include <set>
 #include <map>
-#include <size>
 #include <functional>
 
 #include "host.hpp"
@@ -24,14 +24,15 @@
  */
 class UniformReliableBroadcast {
 private:
+    Hosts hosts;
     BestEffortBroadcast beb;
     std::function<void(DataMessage)> send_handler;
     std::function<void(DataMessage, Host)> deliver_handler;
-    // std::map<size_t, std::set<size_t>> pending_messages; // Set of message IDs of pending messages to sender host_id
+    std::map<size_t, std::set<size_t>> pending_messages; // Set of message IDs of pending messages to sender host_id
 
 
 public:
-    UniformReliableBroadcast(const Host local_host, const Hosts hosts, std::function<void(DataMessage)> send_handler, std::function<void(DataMessage, Host)> deliver_handler): beb(local_host, hosts, send_handler, deliver_handler) {
+    UniformReliableBroadcast(Host local_host, Hosts hosts, std::function<void(TransportMessage)> handler): hosts(hosts), beb(local_host, hosts, handler) {
         for (auto host: hosts.get_hosts()) {
             pending_messages[host.get_id()];
         }

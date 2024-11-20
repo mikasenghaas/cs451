@@ -20,13 +20,20 @@
  */
 class BestEffortBroadcast {
 private:
+    Hosts hosts;
     PerfectLink pl;
 
 public:
-    BestEffortBroadcast(const Host local_host, const Hosts hosts, std::function<void(TransportMessage)> deliver): pl(local_host, hosts, deliver) {}
+    BestEffortBroadcast(Host local_host, Hosts hosts, std::function<void(TransportMessage)> handler): hosts(hosts), pl(local_host, hosts, handler) {
+        std::cout << "Setting up best-effort broadcast at " << local_host.get_address().to_string() << std::endl;
+    }
 
-    void broadcast(const DataMessage message) {
-        this->pl.broadcast(message);
+    void broadcast(Message &m) {
+        auto bm = BroadcastMessage(m);
+        std::cout << "bebBroadcast: " << bm << std::endl;
+        for (auto host : this->hosts.get_hosts()) {
+            this->pl.send(bm, host);
+        }
     }
 
     void shutdown() {
