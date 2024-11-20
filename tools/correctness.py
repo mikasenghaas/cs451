@@ -21,6 +21,17 @@ def check_receiver(outputs: List[str], num_hosts: int, id: int, n: int):
                 received[sender_id] += 1
     return received
 
+def check_beb(outputs: List[str], num_hosts: int, message_count: int):
+    hosts = list(range(1, num_hosts+1))
+    messages = list(range(1, message_count+1))
+    broadcast_messages = [f"b {m}" for m in messages]
+    deliver_messages = [f"d {h} {m}" for h in hosts for m in messages]
+    # Check if all messages were broadcasted and delivered
+    assert set(broadcast_messages).issubset(set(outputs)), "Not all broadcast messages were sent"
+    assert set(deliver_messages).issubset(set(outputs)), "Not all deliver messages were sent"
+    # Check no duplication
+    assert len(deliver_messages) == len(set(deliver_messages)), "Duplicate messages delivered"
+
 def main(args):
     config_file = args.config
     host_file = args.host_file
@@ -62,6 +73,32 @@ def main(args):
             print(f"Received {m} ({m/message_count*100:.2f}%) messages from {s}")
 
         print("Perfect link validation passed ✅")
+    elif args.command == "fifo":
+        # Open config file
+        with open(config_file, "r") as f:
+            config = f.read()
+
+        # Parse config
+        message_count = int(config.split()[0])
+
+        # Host file
+        with open(host_file, "r") as f:
+            hosts = f.readlines()
+
+        num_hosts = len(hosts)
+
+        msg = f"Output files for all processes must exist"
+
+        assert all(os.path.exists(os.path.join(log_dir, f"proc{i:02d}.output")) for i in range(1, num_hosts + 1)), msg
+
+        # Check BEB validation
+        for process_id in range(1, num_hosts + 1):
+            with open(os.path.join(log_dir, f"proc{process_id:02d}.output"), "r") as f:
+                outputs = list(map(str.strip, f.readlines()))
+                check_beb(outputs, num_hosts, message_count)
+
+
+        print("BEB validation passed ✅")
     else:
         raise ValueError(f"Invalid command: {args.command}")
 

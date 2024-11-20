@@ -46,6 +46,42 @@ def main(args):
         print(f"Total Messages: {num_delivered_messages}")
         print(f"Total Time: {time_diff:.2f}s")
         print(f"Average Throughput: {num_delivered_messages/time_diff:.2f} messages/s")
+    elif args.command == "fifo":
+        # Open hosts file
+        throughputs = []
+
+        # Host file
+        with open(host_file, "r") as f:
+            num_hosts = len(f.readlines())
+
+        # Open output files for each process
+        for process_id in range(1, num_hosts + 1):
+            process_output = os.path.join(log_dir, f"proc{process_id:02d}.output")
+            process_stdout = os.path.join(log_dir, f"proc{process_id:02d}.stdout")
+
+            # Get start time from process stdout
+            with open(process_stdout, "r") as f:
+                content = f.read()
+                # Find starting with "Timestamp:" using regex
+                match = re.search(r"Timestamp: (\d+)", content)
+                start_time = datetime.fromtimestamp(int(match.group(1)) / 1000)
+
+            # Get end time from last modification of process output file
+            stats = os.stat(process_output)
+            end_time = datetime.fromtimestamp(stats.st_mtime)
+
+            # Get number of delivered messages
+            with open(process_output, "r") as f:
+                outputs = list(map(str.strip, f.readlines()))
+                delivery_messages = [o for o in outputs if o.startswith("d")]
+                total_messages = len(delivery_messages)
+
+            total_time = (end_time - start_time).total_seconds()
+            throughput = total_messages / total_time
+            throughputs.append(throughput)
+            print(f"Process {process_id} delivered {total_messages} messages in {total_time:.2f}s ({throughput:.2f} messages/s)")
+
+        print(f"Average Throughput: {sum(throughputs)/len(throughputs):.2f} messages/s")
     else:
         raise ValueError(f"Command `{args.command}` not implemented")
 

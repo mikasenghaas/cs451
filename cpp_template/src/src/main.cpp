@@ -124,9 +124,8 @@ int main(int argc, char **argv)
   BestEffortBroadcast beb(local_host, hosts, send_handler, deliver_handler);
   global_beb = &beb;
 
-  // Write timestamp to stdout
-  // std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
-
+  // Start broadcasting and delivering messages
+  std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
   std::cout << "Broadcasting and delivering messages...\n\n";
 
   for (int i = 1; i <= config.get_message_count(); i++) {
