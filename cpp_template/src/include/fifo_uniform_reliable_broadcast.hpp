@@ -1,4 +1,11 @@
 
+#pragma once
+
+#include "message_set.hpp"
+#include "receive_buffer.hpp"
+#include "uniform_reliable_broadcast.hpp"
+#include "hosts.hpp"
+
 /**
  * @brief FIFO-Order Uniform Reliable Broadcast (FRB)
  * 
@@ -17,4 +24,29 @@
  *   already delivered m.
  */
 class FIFOUniformReliableBroadcast {
+private:
+    UniformReliableBroadcast urb;
+    ReceiveBuffer receive_buffer;
+    std::function<void(BroadcastMessage)> handler;
+
+    void deliver(BroadcastMessage bm) {
+        auto bms = this->receive_buffer.deliver(bm);
+        for (auto &bm : bms) {
+            std::cout << "frbDeliver: " << bm << std::endl;
+            this->handler(bm);
+        }
+    }
+
+public:
+    FIFOUniformReliableBroadcast(Host host, Hosts hosts, std::function<void(BroadcastMessage)> handler):
+        urb(host, hosts, [this](BroadcastMessage bm) { this->deliver(std::move(bm)); }),
+        receive_buffer(hosts), handler(handler) {}
+
+    void broadcast(Message &m) {
+        this->urb.broadcast(m);
+    }
+
+    void shutdown() {
+        this->urb.shutdown();
+    }
 };

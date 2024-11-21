@@ -30,11 +30,11 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "uniform_reliable_broadcast.hpp"
+#include "fifo_uniform_reliable_broadcast.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static UniformReliableBroadcast *global_urb = nullptr;
+static FIFOUniformReliableBroadcast *global_frb = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -47,10 +47,10 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_urb != nullptr)
+  if (global_frb != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_urb->shutdown();
+    global_frb->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -123,9 +123,29 @@ int main(int argc, char **argv)
   global_output_file = &output_file;
   std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
+  // ReceiveBuffer rb(hosts); // receive buffer at pid 1
+  // StringMessage sm1("1");
+  // StringMessage sm2("2");
+  // StringMessage sm3("4");
+  // StringMessage sm4("4");
+  // BroadcastMessage bm1(sm1, 1);
+  // BroadcastMessage bm2(sm2, 1);
+  // BroadcastMessage bm3(sm3, 1);
+  // BroadcastMessage bm4(sm4, 1);
+
+  // std::vector<BroadcastMessage> bms = {bm4, bm3, bm1, bm2};
+
+  // for (auto &bm : bms) {
+  //   std::cout << "urbDeliver: " << bm << std::endl;
+  //   std::vector<BroadcastMessage> result = rb.deliver(bm);
+  //   for (auto &bm : result) {
+  //     std::cout << " frbDeliver: " << bm << std::endl;
+  //   }
+  // }
+
   // Setup broadcast
-  UniformReliableBroadcast urb(local_host, hosts, deliver_handler);
-  global_urb = &urb;
+  FIFOUniformReliableBroadcast frb(local_host, hosts, deliver_handler);
+  global_frb = &frb;
 
   // Start broadcasting and delivering messages
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
@@ -133,7 +153,7 @@ int main(int argc, char **argv)
 
   for (int i = 1; i <= config.get_message_count(); i++) {
     StringMessage m(std::to_string(i));
-    urb.broadcast(m);
+    frb.broadcast(m);
     send_handler(m);
   }
 

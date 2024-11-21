@@ -6,6 +6,8 @@
 // Project files
 #include "host.hpp"
 
+const size_t SEQ_NUM_INIT = 0;
+
 enum class MessageType {
     String,
     Broadcast
@@ -52,7 +54,7 @@ private:
     size_t seq_number;
     size_t source_id;
     size_t length;
-    std::unique_ptr<char[]> payload;
+    std::shared_ptr<char[]> payload;
 
 public:
     BroadcastMessage(Message &m, size_t source_id) : Message(MessageType::Broadcast), seq_number(next_id++), source_id(source_id) {
@@ -103,7 +105,7 @@ public:
     size_t get_seq_number() const { return this->seq_number; }
     size_t get_source_id() const { return this->source_id; }
     size_t get_length() const { return this->length; }
-    std::unique_ptr<Message> get_message() {
+    std::shared_ptr<Message> get_message() {
         // Get message type
         MessageType message_type;
         std::memcpy(&message_type, this->payload.get(), sizeof(message_type));
@@ -132,7 +134,7 @@ public:
 };
 
 // Next sequence number
-std::atomic_uint32_t BroadcastMessage::next_id{1};
+std::atomic_uint32_t BroadcastMessage::next_id{SEQ_NUM_INIT};
 
 /**
  * @brief TransportMessage
@@ -321,4 +323,4 @@ public:
 };
 
 // Next sequence number
-std::atomic_uint32_t TransportMessage::next_id{0};
+std::atomic_uint32_t TransportMessage::next_id{SEQ_NUM_INIT};

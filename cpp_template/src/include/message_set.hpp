@@ -39,6 +39,7 @@ public:
     }
 };
 
+
 /**
  * @brief A set of messages per process pair (source, sender).
  * 
