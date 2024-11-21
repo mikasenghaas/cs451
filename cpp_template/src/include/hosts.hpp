@@ -53,17 +53,16 @@ public:
         return this->hosts;
     }
 
+    size_t get_host_count()
+    {
+        return this->hosts.size();
+    }
+
     Address get_address(size_t host_id)
     {
         if (this->host_to_address.find(host_id) == this->host_to_address.end()) {
             throw std::runtime_error("Host ID not found");
         }
         return this->host_to_address[host_id];
-    }
-
-
-    size_t get_host_count()
-    {
-        return this->hosts.size();
     }
 };

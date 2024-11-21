@@ -50,11 +50,12 @@ class BroadcastMessage : public Message {
 private:
     static std::atomic_uint32_t next_id;
     size_t seq_number;
+    size_t source_id;
     size_t length;
     std::unique_ptr<char[]> payload;
 
 public:
-    BroadcastMessage(Message &m) : Message(MessageType::Broadcast), seq_number(next_id++) {
+    BroadcastMessage(Message &m, size_t source_id) : Message(MessageType::Broadcast), seq_number(next_id++), source_id(source_id) {
         this->payload = m.serialize(this->length);
     }
 
@@ -63,12 +64,13 @@ public:
         // We can skip the type
         ssize_t offset = sizeof(this->type);
 
-        std::memcpy(&this->seq_number, payload.get() + offset,
-                    sizeof(this->seq_number));
+        std::memcpy(&this->seq_number, payload.get() + offset, sizeof(this->seq_number));
         offset += sizeof(this->seq_number);
 
-        std::memcpy(&this->length, payload.get() + offset,
-                    sizeof(this->length));
+        std::memcpy(&this->source_id, payload.get() + offset, sizeof(this->source_id));
+        offset += sizeof(this->source_id);
+
+        std::memcpy(&this->length, payload.get() + offset, sizeof(this->length));
         offset += sizeof(this->length);
 
         this->payload = std::unique_ptr<char[]>(new char[this->length]);
@@ -76,7 +78,7 @@ public:
     }
 
     std::unique_ptr<char[]> serialize(uint64_t &total_length) {
-        total_length = sizeof(MessageType) + sizeof(seq_number) + sizeof(length) + this->length;
+        total_length = sizeof(MessageType) + sizeof(seq_number) + sizeof(source_id) + sizeof(length) + this->length;
 
         std::unique_ptr<char[]> payload(new char[total_length]);
         size_t offset = 0;
@@ -87,6 +89,9 @@ public:
         std::memcpy(payload.get() + offset, &this->seq_number, sizeof(this->seq_number));
         offset += sizeof(this->seq_number);
 
+        std::memcpy(payload.get() + offset, &this->source_id, sizeof(this->source_id));
+        offset += sizeof(this->source_id);
+
         std::memcpy(payload.get() + offset, &this->length, sizeof(this->length));
         offset += sizeof(this->length);
 
@@ -96,6 +101,7 @@ public:
     }
 
     size_t get_seq_number() { return this->seq_number; }
+    size_t get_source_id() { return this->source_id; }
     size_t get_length() { return this->length; }
     std::unique_ptr<Message> get_message() {
         // Get message type
@@ -122,7 +128,7 @@ public:
         }
     }
 
-    std::string to_string() const { return "BroadcastMessage(seq_number=" + std::to_string(this->seq_number) + ")"; }
+    std::string to_string() const { return "BroadcastMessage(seq_number=" + std::to_string(this->seq_number) + ", source_id=" + std::to_string(this->source_id) + ")"; }
 };
 
 // Next sequence number

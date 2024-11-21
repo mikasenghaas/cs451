@@ -30,11 +30,11 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "best_effort_broadcast.hpp"
+#include "uniform_reliable_broadcast.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static BestEffortBroadcast *global_beb = nullptr;
+static UniformReliableBroadcast *global_urb = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -47,10 +47,10 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_beb != nullptr)
+  if (global_urb != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_beb->shutdown();
+    global_urb->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -69,15 +69,14 @@ static void send_handler(StringMessage m)
   global_output_file->write("b " + m.get_message() + "\n");
 }
 
-static void deliver_handler(TransportMessage tm)
+static void deliver_handler(BroadcastMessage bm)
 {
-  auto bm = BroadcastMessage(tm.get_payload(), tm.get_length());
   auto msg = bm.get_message();
   std::string message;
   if (auto m = dynamic_cast<StringMessage*>(msg.get())) {
       message = m->get_message();
       // std::cout << "Delivered message " << message << " from " << tm.get_sender().get_id() << std::endl;
-      global_output_file->write("d " + std::to_string(tm.get_sender().get_id()) + " " + message + "\n");
+      global_output_file->write("d " + std::to_string(bm.get_source_id()) + " " + message + "\n");
   }
 }
 
@@ -125,8 +124,8 @@ int main(int argc, char **argv)
   std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
   // Setup broadcast
-  BestEffortBroadcast beb(local_host, hosts, deliver_handler);
-  global_beb = &beb;
+  UniformReliableBroadcast urb(local_host, hosts, deliver_handler);
+  global_urb = &urb;
 
   // Start broadcasting and delivering messages
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
@@ -134,7 +133,7 @@ int main(int argc, char **argv)
 
   for (int i = 1; i <= config.get_message_count(); i++) {
     StringMessage m(std::to_string(i));
-    beb.broadcast(m);
+    urb.broadcast(m);
     send_handler(m);
   }
 
