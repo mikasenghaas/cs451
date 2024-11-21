@@ -41,7 +41,7 @@ private:
           size_t seq_number = tm.get_seq_number();
 
           if (!this->acked_messages.contains(receiver_id, seq_number)) {
-            std::cout << "plSend: " << tm << std::endl;
+            // std::cout << "plSend: " << tm << std::endl;
             this->link.send(tm);
             this->queue.push(tm);
           }
@@ -58,14 +58,14 @@ private:
     return std::thread([this, handler]() {
       this->link.start_receiving(
         [this, handler](TransportMessage tm) {
-          std::cout << "plRecv: " << tm << std::endl;
+          // std::cout << "plRecv: " << tm << std::endl;
           // Get sender and message id
           size_t sender_id = tm.get_sender().get_id();
           size_t seq_number = tm.get_seq_number();
           if (tm.get_is_ack())
           {
             if (!this->acked_messages.contains(sender_id, seq_number)) {
-              std::cout << "Got new ACK: " << tm << std::endl;
+              // std::cout << "Got new ACK: " << tm << std::endl;
               this->acked_messages.insert(sender_id, seq_number);
             }
             return;
@@ -73,14 +73,14 @@ private:
 
           // Send ACK for received message
           TransportMessage ack = TransportMessage::create_ack(tm);
-          std::cout << "Send ACK: " << ack << std::endl;
+          // std::cout << "Send ACK: " << ack << std::endl;
           this->link.send(ack);
 
           // Deliver only if not previously delivered
           if (!this->delivered_messages.contains(sender_id, seq_number))
           {
             this->delivered_messages.insert(sender_id, seq_number);
-            std::cout << "plDeliver: " << tm << std::endl;
+            // std::cout << "plDeliver: " << tm << std::endl;
             handler(tm);
           }
       });
@@ -91,7 +91,7 @@ private:
 public:
   PerfectLink(Host host, Hosts hosts, std::function<void(TransportMessage)> deliver) : 
     host(host), hosts(hosts), link(host, hosts), acked_messages(hosts), delivered_messages(hosts) {
-    std::cout << "Setting up perfect link at " << host.get_address().to_string() << std::endl;
+    // std::cout << "Setting up perfect link at " << host.get_address().to_string() << std::endl;
     this->receiving_thread = start_receiving(deliver);
     this->sending_thread = start_sending();
   }
@@ -108,13 +108,6 @@ public:
     queue.push(tm);
   }
 
-  void broadcast(Message &m) {
-    std::cout << "plBroadcast: " << m << std::endl;
-    for (auto host : this->hosts.get_hosts()) {
-      this->send(m, host);
-    }
-  }
-  
   void shutdown()
   {
     this->link.stop_receiving();

@@ -23,14 +23,14 @@ public:
 
   FairLossLink(Host host, Hosts hosts) : host(host)
   {
-    std::cout << "Setting up fair loss link at " << host.get_address().to_string() << std::endl;
+    // std::cout << "Setting up fair loss link at " << host.get_address().to_string() << std::endl;
     // Create socket
     this->sockfd = create_socket();
   }
 
   void send(TransportMessage tm)
   {
-    std::cout << "flSend: " << tm << std::endl;
+    // std::cout << "flSend: " << tm << std::endl;
     
     // Serialize message
     uint64_t payload_length;
@@ -62,11 +62,11 @@ public:
 
       // Deserialize message
       TransportMessage tm = TransportMessage::deserialize(buffer, num_bytes);
-      std::cout << "flDeliver: " << tm << std::endl;
+      // std::cout << "flDeliver: " << tm << std::endl;
       handler(tm);
     }
 
-    std::cout << "Closing socket at " << host.get_address().to_string() << "\n";
+    // std::cout << "Closing socket at " << host.get_address().to_string() << "\n";
 
     // Close socket
     close(this->sockfd);

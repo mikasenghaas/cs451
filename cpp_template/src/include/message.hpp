@@ -100,9 +100,9 @@ public:
         return payload;
     }
 
-    size_t get_seq_number() { return this->seq_number; }
-    size_t get_source_id() { return this->source_id; }
-    size_t get_length() { return this->length; }
+    size_t get_seq_number() const { return this->seq_number; }
+    size_t get_source_id() const { return this->source_id; }
+    size_t get_length() const { return this->length; }
     std::unique_ptr<Message> get_message() {
         // Get message type
         MessageType message_type;
