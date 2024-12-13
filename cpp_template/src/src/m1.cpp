@@ -30,11 +30,11 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "lattice_agreement.hpp"
+#include "perfect_link.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static LatticeAgreement *global_la = nullptr;
+static PerfectLink *global_pl = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -47,10 +47,10 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_la != nullptr)
+  if (global_pl != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_la->shutdown();
+    global_pl->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -63,14 +63,14 @@ static void stop(int)
   exit(0);
 }
 
-static void laDecide(ProposalMessage pm) {
-  std::cout << "laDecide: " << pm << std::endl;
-  std::string message;
-  for (auto value: pm.get_proposal()) {
-      message += std::to_string(value) + " ";
-  }
-  message += "\n";
-  global_output_file->write(message);
+static void plSend(StringMessage sm) {
+  global_output_file->write("b " + sm.get_message() + "\n");
+}
+
+static void plDeliver(TransportMessage tm) {
+  auto sender_id = tm.get_sender().get_id();
+  auto message = StringMessage(tm.get_payload()).get_message();
+  global_output_file->write("d " + std::to_string(sender_id) + " " + message + "\n");
 }
 
 int main(int argc, char **argv) {
@@ -102,22 +102,15 @@ int main(int argc, char **argv) {
   std::cout << result << "\n";
 
   // Load the config file
-  LatticeAgreementConfig config(parser.configPath());
-  std::cout << "\nLoaded config (p=" << config.get_num_proposals() << ", vs=" << config.get_max_proposal_size() << ", ds=" << config.get_max_distinct_elements() << ")\n\n";
+  PerfectLinkConfig config(parser.configPath());
+  std::cout << "\nLoaded config (p=" << config.get_message_count() << ", vs=" << config.get_receiver_id() << ")\n\n";
 
-  auto proposals = config.get_proposals();
-  for (uint i=0; i<proposals.size(); i++) {
-    std::cout << "Proposal " << i+1 << ": { ";
-    for (auto value: proposals.at(i)) {
-      std::cout << value << " "; 
-    }
-    std::cout << "}\n";
-  }
-  std::cout << "\n";
+  // Setup local
+  Host local_host(parser.id(), hosts.get_address(parser.id()));
+  std::cout << "Local address: " << local_host.get_address().to_string() << "\n\n";
 
-  // Setup local address
-  size_t local_id = static_cast<uint8_t>(parser.id());
-  Host local_host(local_id, hosts.get_address(local_id));
+  // Setup receiver
+  Host receiver_host(config.get_receiver_id(), hosts.get_address(config.get_receiver_id()));
   std::cout << "Local address: " << local_host.get_address().to_string() << "\n\n";
 
   // Open output file
@@ -125,27 +118,20 @@ int main(int argc, char **argv) {
   global_output_file = &output_file;
   std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
-  // Instantiate lattice agreement
-  LatticeAgreement la(local_host, hosts, laDecide);
-  global_la = &la;
+  // Instantiate perfect link
+  PerfectLink pl(local_host, hosts, plDeliver);
+  global_pl = &pl;
 
-  // ProposalMessage pm(0, 0, {1, 2, 3});
-  // std::cout << pm << std::endl;
-
-  // size_t length;
-  // auto payload = pm.serialize(length);
-  // TransportMessage tm(local_host, local_host, std::move(payload), length);
-  // std::cout << tm << std::endl;
-  // ProposalMessage pm2(tm.get_payload());
-  // std::cout << pm2 << std::endl;
-
-  // Start proposing
+  // Start broadcasting and delivering messages
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
-  std::cout << "Proposing...\n\n";
+  std::cout << "Broadcasting and delivering messages...\n\n";
 
-  if (local_host.get_id() == 1) {
-    for (auto proposal: config.get_proposals()) {
-      la.propose(proposal);
+  // Send messages
+  if (local_host.get_id() != receiver_host.get_id()) {
+    for (int i=1; i<=config.get_message_count(); i++) {
+      StringMessage sm(std::to_string(i));
+      plSend(sm);
+      pl.send(sm, receiver_host);
     }
   }
 

@@ -30,11 +30,11 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "lattice_agreement.hpp"
+#include "fifo_uniform_reliable_broadcast.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static LatticeAgreement *global_la = nullptr;
+static FIFOUniformReliableBroadcast *global_frb = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -47,10 +47,10 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_la != nullptr)
+  if (global_frb != nullptr)
   {
     std::cout << "\nImmediately stopping network packet processing.\n";
-    global_la->shutdown();
+    global_frb->shutdown();
   }
 
   if (global_output_file != nullptr)
@@ -63,14 +63,17 @@ static void stop(int)
   exit(0);
 }
 
-static void laDecide(ProposalMessage pm) {
-  std::cout << "laDecide: " << pm << std::endl;
-  std::string message;
-  for (auto value: pm.get_proposal()) {
-      message += std::to_string(value) + " ";
-  }
-  message += "\n";
-  global_output_file->write(message);
+static void frbBroadcast(StringMessage m)
+{
+  // std::cout << "b " << msg.get_message() << std::endl;
+  global_output_file->write("b " + m.get_message() + "\n");
+}
+
+static void frbDeliver(BroadcastMessage bm)
+{
+  StringMessage sm(bm.get_payload());
+  std::string message = sm.get_message();
+  global_output_file->write("d " + std::to_string(bm.get_source_id()) + " " + message + "\n");
 }
 
 int main(int argc, char **argv) {
@@ -102,18 +105,8 @@ int main(int argc, char **argv) {
   std::cout << result << "\n";
 
   // Load the config file
-  LatticeAgreementConfig config(parser.configPath());
-  std::cout << "\nLoaded config (p=" << config.get_num_proposals() << ", vs=" << config.get_max_proposal_size() << ", ds=" << config.get_max_distinct_elements() << ")\n\n";
-
-  auto proposals = config.get_proposals();
-  for (uint i=0; i<proposals.size(); i++) {
-    std::cout << "Proposal " << i+1 << ": { ";
-    for (auto value: proposals.at(i)) {
-      std::cout << value << " "; 
-    }
-    std::cout << "}\n";
-  }
-  std::cout << "\n";
+  FIFOUniformReliableBroadcastConfig config(parser.configPath());
+  std::cout << "\nLoaded config (p=" << config.get_message_count() << ")\n\n";
 
   // Setup local address
   size_t local_id = static_cast<uint8_t>(parser.id());
@@ -126,27 +119,17 @@ int main(int argc, char **argv) {
   std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
   // Instantiate lattice agreement
-  LatticeAgreement la(local_host, hosts, laDecide);
-  global_la = &la;
+  FIFOUniformReliableBroadcast frb(local_host, hosts, frbDeliver);
+  global_frb = &frb;
 
-  // ProposalMessage pm(0, 0, {1, 2, 3});
-  // std::cout << pm << std::endl;
-
-  // size_t length;
-  // auto payload = pm.serialize(length);
-  // TransportMessage tm(local_host, local_host, std::move(payload), length);
-  // std::cout << tm << std::endl;
-  // ProposalMessage pm2(tm.get_payload());
-  // std::cout << pm2 << std::endl;
-
-  // Start proposing
+  // Start broadcasting and delivering messages
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
-  std::cout << "Proposing...\n\n";
+  std::cout << "Broadcasting and delivering messages...\n\n";
 
-  if (local_host.get_id() == 1) {
-    for (auto proposal: config.get_proposals()) {
-      la.propose(proposal);
-    }
+  for (int i = 1; i <= config.get_message_count(); i++) {
+    StringMessage m(std::to_string(i));
+    frb.broadcast(m);
+    frbBroadcast(m);
   }
 
   // Infinite loop to keep the program running
