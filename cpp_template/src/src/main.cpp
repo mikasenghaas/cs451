@@ -110,8 +110,18 @@ int main(int argc, char **argv)
   std::cout << result << "\n";
 
   // Load the config file
-  FIFOUniformReliableBroadcastConfig config(parser.configPath());
-  std::cout << "\nLoaded config (m=" << config.get_message_count() << ")\n\n";
+  LatticeAgreementConfig config(parser.configPath());
+  std::cout << "\nLoaded config (p=" << config.get_num_proposals() << ", vs=" << config.get_max_proposal_size() << ", ds=" << config.get_max_distinct_elements() << ")\n\n";
+
+  auto proposals = config.get_proposals();
+  for (uint i=0; i<proposals.size(); i++) {
+    std::cout << "Proposal " << i+1 << ": { ";
+    for (auto value: proposals.at(i)) {
+      std::cout << value << " "; 
+    }
+    std::cout << "}\n";
+  }
+  std::cout << "\n";
 
   // Setup local address
   size_t local_id = static_cast<uint8_t>(parser.id());
@@ -119,43 +129,9 @@ int main(int argc, char **argv)
   std::cout << "Local address: " << local_host.get_address().to_string() << "\n\n";
 
   // Open output file
-  OutputFile output_file(parser.outputPath());
-  global_output_file = &output_file;
-  std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
-
-  // ReceiveBuffer rb(hosts); // receive buffer at pid 1
-  // StringMessage sm1("1");
-  // StringMessage sm2("2");
-  // StringMessage sm3("4");
-  // StringMessage sm4("4");
-  // BroadcastMessage bm1(sm1, 1);
-  // BroadcastMessage bm2(sm2, 1);
-  // BroadcastMessage bm3(sm3, 1);
-  // BroadcastMessage bm4(sm4, 1);
-
-  // std::vector<BroadcastMessage> bms = {bm4, bm3, bm1, bm2};
-
-  // for (auto &bm : bms) {
-  //   std::cout << "urbDeliver: " << bm << std::endl;
-  //   std::vector<BroadcastMessage> result = rb.deliver(bm);
-  //   for (auto &bm : result) {
-  //     std::cout << " frbDeliver: " << bm << std::endl;
-  //   }
-  // }
-
-  // Setup broadcast
-  FIFOUniformReliableBroadcast frb(local_host, hosts, deliver_handler);
-  global_frb = &frb;
-
-  // Start broadcasting and delivering messages
-  std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
-  std::cout << "Broadcasting and delivering messages...\n\n";
-
-  for (int i = 1; i <= config.get_message_count(); i++) {
-    StringMessage m(std::to_string(i));
-    frb.broadcast(m);
-    send_handler(m);
-  }
+  // OutputFile output_file(parser.outputPath());
+  // global_output_file = &output_file;
+  // std::cout << "Opened output file at " << parser.outputPath() << "\n\n";
 
   // Infinite loop to keep the program running
   while (!should_stop) {

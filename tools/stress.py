@@ -504,6 +504,15 @@ if __name__ == "__main__":
             help="Distribution of the attempts (format: STOP:0.48,CONT:0.48,TERM:0.04)",
         )
 
+        # TODO: Figure out why this was only for perfect links
+        subparser.add_argument(
+            "-t",
+            "--timeout",
+            type=positive_int,
+            dest="timeout",
+            help="Timeout in seconds after which the program will terminate",
+        )
+
     for subparser in [parser_perfect, parser_fifo]:
         subparser.add_argument(
             "-m",
@@ -512,15 +521,6 @@ if __name__ == "__main__":
             type=positive_int,
             dest="messages",
             help="Maximum number (because it can crash) of messages that each process can broadcast",
-        )
-
-        # TODO: Figure out why this was only for perfect links
-        subparser.add_argument(
-            "-t",
-            "--timeout",
-            type=positive_int,
-            dest="timeout",
-            help="Timeout in seconds after which the program will terminate",
         )
     
     parser_agreement.add_argument(
