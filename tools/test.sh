@@ -72,14 +72,8 @@ fi
 
 # Validate correctness
 echo -e "\nCorrectness:"
-python tools/correctness.py $command \
-    -C logs/config \
-    -H logs/hosts \
-    -L logs
+python tools/correctness.py $command --log-dir logs
 
 # Estimate performance
 echo -e "\nPerformance:"
-python tools/performance.py $command \
-    -C logs/config \
-    -H logs/hosts \
-    -L logs
+python tools/performance.py $command --log-dir logs

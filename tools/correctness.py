@@ -62,15 +62,27 @@ def check_fifo(outputs: List[str], num_hosts: int, host_id: int):
     return True
 
 def main(args):
-    config_file = args.config
-    host_file = args.host_file
     log_dir = args.log_dir
+    assert os.path.exists(log_dir), f"Log directory {log_dir} does not exist"
 
-    assert os.path.exists(config_file), f"Config file {config_file} does not exist"
-    assert os.path.exists(host_file), f"Host file {host_file} does not exist"
-    assert os.path.exists(log_dir), f"Output directory {log_dir} does not exist"
+    if args.command == "perfect" or args.command == "fifo":
+        config_file = os.path.join(log_dir, "config")
+        host_file = os.path.join(log_dir, "hosts")
+        assert os.path.exists(config_file), f"Config file {config_file} does not exist"
+        assert os.path.exists(host_file), f"Host file {host_file} does not exist"
+    else:
+        host_file = os.path.join(log_dir, "hosts")
+        num_processes = int(os.popen(f"wc -l < {host_file}").read().strip())
+        config_files = [os.path.join(log_dir, f"proc{i:02d}.config") for i in range(1, num_processes+1)]
+        for config_file in config_files:
+            assert os.path.exists(config_file), f"Config file {config_file} does not exist"
 
     if args.command == "perfect":
+        config_file = os.path.join(log_dir, "config")
+        host_file = os.path.join(log_dir, "hosts")
+        assert os.path.exists(config_file), f"Config file {config_file} does not exist"
+        assert os.path.exists(host_file), f"Host file {host_file} does not exist"
+
         # Open config file
         with open(config_file, "r") as f:
             config = f.read()
@@ -129,8 +141,8 @@ def main(args):
         
         print("BEB validation passed ✅")
         print("FIFO validation passed ✅")
-    else:
-        raise ValueError(f"Invalid command: {args.command}")
+    elif args.command == "agreement":
+        print("Lattice agreement validation not yet implemented 🚧")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -143,23 +155,6 @@ if __name__ == "__main__":
 
     for subparser in [parser_perfect, parser_fifo, parser_agreement]:
         subparser.add_argument(
-            "-C",
-            "--config",
-            required=True,
-            dest="config",
-            help="Path to the config file",
-        )
-
-        subparser.add_argument(
-            "-H",
-            "--host-file",
-            required=True,
-            dest="host_file",
-            help="Path to the host file",
-        )
-
-        subparser.add_argument(
-            "-L",
             "--log-dir",
             required=True,
             dest="log_dir",
