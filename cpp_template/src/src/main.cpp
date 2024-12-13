@@ -30,11 +30,10 @@
 #include "config.hpp"
 #include "output.hpp"
 #include "message.hpp"
-#include "fifo_uniform_reliable_broadcast.hpp"
 
 // Globals
 static std::atomic<bool> should_stop(false);
-static FIFOUniformReliableBroadcast *global_frb = nullptr;
+// static FIFOUniformReliableBroadcast *global_frb = nullptr;
 static OutputFile *global_output_file = nullptr;
 
 static void stop(int)
@@ -47,11 +46,11 @@ static void stop(int)
   should_stop = true;
 
   // Immediately stop network packet processing
-  if (global_frb != nullptr)
-  {
-    std::cout << "\nImmediately stopping network packet processing.\n";
-    global_frb->shutdown();
-  }
+  // if (global_frb != nullptr)
+  // {
+  //   std::cout << "\nImmediately stopping network packet processing.\n";
+  //   global_frb->shutdown();
+  // }
 
   if (global_output_file != nullptr)
   {
@@ -63,21 +62,15 @@ static void stop(int)
   exit(0);
 }
 
-static void send_handler(StringMessage m)
+static void deliver_handler(ProposalMessage pm)
 {
-  // std::cout << "b " << msg.get_message() << std::endl;
-  global_output_file->write("b " + m.get_message() + "\n");
-}
-
-static void deliver_handler(BroadcastMessage bm)
-{
-  auto msg = bm.get_message();
   std::string message;
-  if (auto m = dynamic_cast<StringMessage*>(msg.get())) {
-      message = m->get_message();
-      // std::cout << "Delivered message " << message << " from " << tm.get_sender().get_id() << std::endl;
-      global_output_file->write("d " + std::to_string(bm.get_source_id()) + " " + message + "\n");
+  for (auto value: pm.get_proposal()) {
+      message += std::to_string(value) + " ";
   }
+  message += "\n";
+  // std::cout << "Delivered message " << message << " from " << tm.get_sender().get_id() << std::endl;
+  global_output_file->write(message);
 }
 
 int main(int argc, char **argv)
@@ -127,6 +120,30 @@ int main(int argc, char **argv)
   size_t local_id = static_cast<uint8_t>(parser.id());
   Host local_host(local_id, hosts.get_address(local_id));
   std::cout << "Local address: " << local_host.get_address().to_string() << "\n\n";
+
+  // Create a proposal message
+  ProposalMessage p(ProposalMessage::Type::Propose, 0, 0, {1, 2, 3});
+  std::cout << p << "\n";
+
+  // Create broadcast message
+  BroadcastMessage b(p, local_id);
+  std::cout << b << std::endl;
+
+  // Create transport message (in BEB)
+  size_t length;
+  auto payload = b.serialize(length);
+  TransportMessage t(local_host, local_host, payload, length);
+  std::cout << t << std::endl;
+
+  // Unpack transport message
+  auto b2 = BroadcastMessage(t.get_payload());
+  std::cout << b2 << "\n";
+
+  // Unpack broadcast message
+  auto p2 = ProposalMessage(b2.get_payload());
+  std::cout << p2 << "\n";
+
+  exit(0);
 
   // Open output file
   // OutputFile output_file(parser.outputPath());
