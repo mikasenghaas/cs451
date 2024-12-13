@@ -27,20 +27,20 @@ class FIFOUniformReliableBroadcast {
 private:
     UniformReliableBroadcast urb;
     ReceiveBuffer receive_buffer;
-    std::function<void(BroadcastMessage)> handler;
+    std::function<void(BroadcastMessage)> frbDeliver;
 
-    void deliver(BroadcastMessage bm) {
+    void urbDeliver(BroadcastMessage bm) {
         auto bms = this->receive_buffer.deliver(bm);
         for (auto &bm : bms) {
             std::cout << "frbDeliver: " << bm << std::endl;
-            this->handler(bm);
+            this->frbDeliver(bm);
         }
     }
 
 public:
-    FIFOUniformReliableBroadcast(Host host, Hosts hosts, std::function<void(BroadcastMessage)> handler):
-        urb(host, hosts, [this](BroadcastMessage bm) { this->deliver(std::move(bm)); }),
-        receive_buffer(hosts), handler(handler) {}
+    FIFOUniformReliableBroadcast(Host host, Hosts hosts, std::function<void(BroadcastMessage)> frbDeliver):
+        urb(host, hosts, [this](BroadcastMessage bm) { this->urbDeliver(std::move(bm)); }),
+        receive_buffer(hosts), frbDeliver(frbDeliver) {}
 
     void broadcast(Message &m) {
         this->urb.broadcast(m);

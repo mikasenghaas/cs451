@@ -25,12 +25,11 @@ private:
     PerfectLink pl;
 
 public:
-    BestEffortBroadcast(Host local_host, Hosts hosts, std::function<void(TransportMessage)> handler): hosts(hosts), pl(local_host, hosts, handler) {
-        // std::cout << "Setting up BEB at " << local_host.get_address().to_string() << std::endl;
-    }
+    BestEffortBroadcast(Host local_host, Hosts hosts, std::function<void(TransportMessage)> bebDeliver) :
+        hosts(hosts), pl(local_host, hosts, bebDeliver) {}
 
     void broadcast(Message &m) {
-        // std::cout << "bebBroadcast: " << m << std::endl;
+        std::cout << "bebBroadcast: " << m << std::endl;
         for (auto host : this->hosts.get_hosts()) {
             this->pl.send(m, host);
         }

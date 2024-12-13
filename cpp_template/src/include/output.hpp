@@ -14,6 +14,9 @@ public:
     OutputFile(const std::string file_name)
     {
         this->file.open(file_name, std::ofstream::out);
+        if (!this->file.is_open()) {
+            throw std::runtime_error("Failed to open output file: " + file_name);
+        }
     }
 
     ~OutputFile()

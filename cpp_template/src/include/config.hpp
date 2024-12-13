@@ -2,7 +2,7 @@
 
 #include <string>
 #include <vector>
-#include <unordered_set>
+#include <set>
 
 /**
  * @brief Configuration class for Perfect Link
@@ -89,7 +89,7 @@ private:
     int num_proposals; // Proposal count
     int max_proposal_size; // Maximum number of elements per proposal
     int max_distinct_elements; // Maximum number of distinct elements
-    std::vector<std::unordered_set<int>> proposals; // List of proposal sets
+    std::vector<std::set<int>> proposals; // List of proposal sets
 
 public:
 
@@ -110,7 +110,7 @@ public:
         std::getline(file, line);
         for (int i=0; i<num_proposals; i++) {
             std::getline(file, line);
-            std::unordered_set<int> proposal;
+            std::set<int> proposal;
             std::istringstream iss(line);
             int value;
             while (iss >> value) {
@@ -123,5 +123,5 @@ public:
     int get_num_proposals() { return num_proposals; }
     int get_max_proposal_size() { return max_proposal_size; }
     int get_max_distinct_elements() { return max_proposal_size; }
-    std::vector<std::unordered_set<int>> get_proposals() { return proposals; }
+    std::vector<std::set<int>> get_proposals() { return proposals; }
 };

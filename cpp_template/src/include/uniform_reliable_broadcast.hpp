@@ -55,7 +55,6 @@ private:
         size_t message_id = bm.get_seq_number();
         this->acked_messages.insert(source_id, sender_id, message_id);
 
-
         // If not pending, then add to pending set and relay
         bool pending = this->pending_messages.contains(source_id, message_id);
         if (!pending) {
@@ -65,8 +64,7 @@ private:
             return;
         } 
 
-
-        // // Else, check majority if message can be delivered
+        // Else, check majority if message can be delivered
         bool can_deliver = this->can_deliver(bm);
         bool already_delivered = this->delivered_messages.contains(source_id, bm.get_seq_number());
         if (can_deliver && !already_delivered) {
@@ -80,7 +78,7 @@ public:
     UniformReliableBroadcast(Host local_host, Hosts hosts, std::function<void(BroadcastMessage)> handler): 
         host(local_host), hosts(hosts), pending_messages(hosts), delivered_messages(hosts), acked_messages(hosts), handler(handler),
         beb(local_host, hosts, [this](TransportMessage tm) { 
-            this->deliver(BroadcastMessage(tm.get_payload(), tm.get_length()), tm.get_sender());
+            this->deliver(BroadcastMessage(tm.get_payload()), tm.get_sender());
         }) {
         // std::cout << "Setting up URB at " << local_host.get_address().to_string() << std::endl;
     }

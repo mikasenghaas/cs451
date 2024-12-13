@@ -45,7 +45,11 @@ private:
 
 public:
     StringMessage(std::string message) : Message(Message::Type::String), message(message) {}
-    StringMessage(std::shared_ptr<char[]> payload) : Message(Message::Type::String) { *this = deserialize(payload); }
+    StringMessage(std::shared_ptr<char[]> payload) : Message(Message::Type::String) { 
+        auto offset = sizeof(Message::Type);
+        auto msg_length = deserialize_field<size_t>(payload.get(), offset);
+        message = std::string(payload.get() + offset, msg_length);
+    }
 
     std::shared_ptr<char[]> serialize(size_t &length) {
         length = sizeof(this->message_type) + sizeof(size_t) + message.length();
@@ -58,21 +62,10 @@ public:
         return payload;
     }
 
-    static StringMessage deserialize(std::shared_ptr<char[]> payload) {
-        auto offset = sizeof(Message::Type);
-        auto msg_length = deserialize_field<size_t>(payload.get(), offset);
-        std::string message(payload.get() + offset, msg_length);
-
-        return StringMessage(message);
-    }
-
     std::string get_message() const { return message; }
     std::string to_string() const { return "StringMessage(" + message + ")"; }
 }; 
 
-/**
- * @brief ProposalMessage contains a set proposal in a round of lattice agreement
- */
 class ProposalMessage : public Message {
 public:
     enum class Type { Propose, Ack, Nack };
@@ -83,11 +76,32 @@ private:
     std::set<int> proposal;
 
 public:
+    ProposalMessage(int round, int proposal_number, std::set<int> proposal) : 
+        Message(Message::Type::Proposal), round(round), proposal_number(proposal_number), proposal(proposal) {}
 
-    // Constructor
-    ProposalMessage(ProposalMessage::Type proposal_type, int round, int proposal_number, std::set<int> proposal):
-        Message(Message::Type::Proposal), proposal_type(proposal_type), round(round), proposal_number(proposal_number), proposal(proposal) {}
-    ProposalMessage(std::shared_ptr<char[]> payload) : Message(Message::Type::Proposal) { *this = deserialize(payload); }
+    ProposalMessage(ProposalMessage::Type proposal_type, int round, int proposal_number, std::set<int> proposal) :
+        ProposalMessage(round, proposal_number, proposal) {
+            this->proposal_type = proposal_type;
+        }
+
+    ProposalMessage(std::shared_ptr<char[]> payload) : Message(Message::Type::Proposal) { 
+        size_t offset = sizeof(Message::Type);
+        this->proposal_type = deserialize_field<ProposalMessage::Type>(payload.get(), offset);
+        this->round = deserialize_field<int>(payload.get(), offset);
+        this->proposal_number = deserialize_field<int>(payload.get(), offset);
+        size_t proposal_size = deserialize_field<size_t>(payload.get(), offset);
+        this->proposal = std::set<int>();
+        for (size_t i = 0; i < proposal_size; i++) {
+            this->proposal.insert(deserialize_field<int>(payload.get(), offset));
+        }
+    }
+
+    static ProposalMessage create_ack(ProposalMessage p) {
+        return ProposalMessage(ProposalMessage::Type::Ack, p.round, p.proposal_number, p.proposal);
+    }
+    static ProposalMessage create_nack(ProposalMessage p, std::set<int> proposal) {
+        return ProposalMessage(ProposalMessage::Type::Nack, p.round, p.proposal_number+1, proposal);
+    }
 
     std::shared_ptr<char[]> serialize(size_t &length) {
         length = sizeof(Message::Type) + sizeof(ProposalMessage::Type) + sizeof(round) + sizeof(proposal_number) + sizeof(proposal);
@@ -97,19 +111,12 @@ public:
         serialize_field(payload.get(), offset, proposal_type);
         serialize_field(payload.get(), offset, round);
         serialize_field(payload.get(), offset, proposal_number);
-        serialize_field(payload.get(), offset, proposal);
+        serialize_field(payload.get(), offset, proposal.size());
+        for (const auto& value : proposal) {
+            serialize_field(payload.get(), offset, value);
+        }
 
         return payload;
-    }
-
-    static ProposalMessage deserialize(std::shared_ptr<char[]> payload) {
-        size_t offset = sizeof(Message::Type);
-        auto proposal_type = deserialize_field<ProposalMessage::Type>(payload.get(), offset);
-        auto round = deserialize_field<int>(payload.get(), offset);
-        auto proposal_number = deserialize_field<int>(payload.get(), offset);
-        auto proposal = deserialize_field<std::set<int>>(payload.get(), offset);
-
-        return ProposalMessage(proposal_type, round, proposal_number, proposal);
     }
 
     size_t get_round() const { return this->round; }
@@ -135,16 +142,26 @@ private:
     std::shared_ptr<char[]> payload;
 
 public:
-    BroadcastMessage(size_t seq_number, size_t source_id, size_t length, std::shared_ptr<char[]> payload) : Message(Message::Type::Broadcast), seq_number(seq_number), source_id(source_id), length(length), payload(payload) {}
+    BroadcastMessage(size_t seq_number, size_t source_id, size_t length, std::shared_ptr<char[]> payload) : 
+        Message(Message::Type::Broadcast), seq_number(seq_number), source_id(source_id), length(length), payload(std::move(payload)) {}
+
     BroadcastMessage(Message &m, size_t source_id) : Message(Message::Type::Broadcast), seq_number(next_id++), source_id(source_id) {
         this->payload = m.serialize(this->length);
     }
-    BroadcastMessage(std::shared_ptr<char[]> payload) : Message(Message::Type::Broadcast) { *this = BroadcastMessage::deserialize(payload); }
+
+    BroadcastMessage(std::shared_ptr<char[]> payload) : Message(Message::Type::Broadcast) { 
+        size_t offset = sizeof(message_type);
+        this->seq_number = deserialize_field<size_t>(payload.get(), offset);
+        this->source_id = deserialize_field<size_t>(payload.get(), offset);
+        this->length = deserialize_field<size_t>(payload.get(), offset);
+        this->payload = std::shared_ptr<char[]>(new char[this->length]);
+        if (length > 0) { std::memcpy(this->payload.get(), payload.get() + offset, length); }
+    }
 
     std::shared_ptr<char[]> serialize(size_t &length) {
         length = sizeof(this->message_type) + sizeof(this->seq_number) + sizeof(this->source_id) + sizeof(this->length) + this->length;
 
-        size_t offset = 0; std::unique_ptr<char[]> payload(new char[length]);
+        size_t offset = 0; std::shared_ptr<char[]> payload(new char[length]);
         serialize_field(payload.get(), offset, this->message_type);
         serialize_field(payload.get(), offset, this->seq_number);
         serialize_field(payload.get(), offset, this->source_id);
@@ -152,17 +169,6 @@ public:
         if (this->length > 0) { std::memcpy(payload.get() + offset, this->payload.get(), this->length); } 
 
         return payload;
-    }
-
-    static BroadcastMessage deserialize(std::shared_ptr<char[]> payload) {
-        size_t offset = sizeof(message_type);
-        auto seq_number = deserialize_field<size_t>(payload.get(), offset);
-        auto source_id = deserialize_field<size_t>(payload.get(), offset);
-        auto length = deserialize_field<size_t>(payload.get(), offset);
-        auto msg_payload = std::shared_ptr<char[]>(new char[length]);
-        if (length > 0) { std::memcpy(msg_payload.get(), payload.get() + offset, length); }
-
-        return BroadcastMessage(seq_number, source_id, length, msg_payload);
     }
 
     size_t get_seq_number() const { return this->seq_number; }
@@ -181,9 +187,6 @@ public:
 };
 
 
-/**
- * @brief TransportMessage
-*/
 class TransportMessage: public Message {
 public:
     enum class Type { Data, Ack };
@@ -198,40 +201,39 @@ private:
     size_t length;
 
 public:
+    TransportMessage() : Message(Message::Type::Transport) {}
+
     TransportMessage(TransportMessage::Type transport_type, Host sender, Host receiver, size_t seq_number, std::shared_ptr<char[]> payload, size_t length) :
-        Message(Message::Type::Transport), transport_type(transport_type), sender(sender), receiver(receiver), seq_number(seq_number), payload(payload), length(length) {}
+        Message(Message::Type::Transport), transport_type(transport_type), sender(sender), receiver(receiver), seq_number(seq_number), payload(std::move(payload)), length(length) {}
     
     TransportMessage(Host sender, Host receiver, std::shared_ptr<char[]> payload, size_t length) :
-        Message(Message::Type::Transport), transport_type(TransportMessage::Type::Data), sender(sender), receiver(receiver), seq_number(next_id++), payload(payload), length(length) {}
+        Message(Message::Type::Transport), transport_type(TransportMessage::Type::Data), sender(sender), receiver(receiver), seq_number(next_id++), payload(std::move(payload)), length(length) {}
 
+     // Note: Deserializes from raw buffer
+     TransportMessage (const char *buffer): Message(Message::Type::Transport) { 
+        size_t offset = sizeof(Message::Type);
+        this->transport_type = deserialize_field<TransportMessage::Type>(buffer, offset);
+        this->sender = deserialize_field<Host>(buffer, offset);
+        this->receiver = deserialize_field<Host>(buffer, offset);
+        this->seq_number = deserialize_field<size_t>(buffer, offset);
+        this->length = deserialize_field<size_t>(buffer, offset);
+        this->payload = std::shared_ptr<char[]>(new char[this->length]);
+        if (this->length > 0) { std::memcpy(this->payload.get(), buffer + offset, this->length); }
+     }
 
     std::shared_ptr<char[]> serialize(size_t &length) {
         length = sizeof(this->message_type) + sizeof(this->transport_type) + sizeof(this->sender) + sizeof(this->receiver) + sizeof(this->seq_number) + sizeof(this->length) + this->length; 
         size_t offset = 0; auto payload = std::shared_ptr<char[]>(new char[length]);
 
-        serialize_field<Message::Type>(payload.get(), offset, message_type);
-        serialize_field<TransportMessage::Type>(payload.get(), offset, transport_type);
-        serialize_field<Host>(payload.get(), offset, sender);
-        serialize_field<Host>(payload.get(), offset, receiver);
-        serialize_field<size_t>(payload.get(), offset, seq_number);
-        serialize_field<size_t>(payload.get(), offset, length);
-        if (length > 0) { std::memcpy(payload.get() + offset, this->payload.get(), length); }
+        serialize_field<Message::Type>(payload.get(), offset, this->message_type);
+        serialize_field<TransportMessage::Type>(payload.get(), offset, this->transport_type);
+        serialize_field<Host>(payload.get(), offset, this->sender);
+        serialize_field<Host>(payload.get(), offset, this->receiver);
+        serialize_field<size_t>(payload.get(), offset, this->seq_number);
+        serialize_field<size_t>(payload.get(), offset, this->length);
+        if (this->length > 0) { std::memcpy(payload.get() + offset, this->payload.get(), this->length); }
 
         return payload;
-    }
-
-    static TransportMessage deserialize(std::shared_ptr<char[]> payload)
-    {
-        size_t offset = sizeof(Message::Type);
-        auto transport_type = deserialize_field<TransportMessage::Type>(payload.get(), offset);
-        auto sender = deserialize_field<Host>(payload.get(), offset);
-        auto receiver = deserialize_field<Host>(payload.get(), offset);
-        auto seq_number = deserialize_field<size_t>(payload.get(), offset);
-        auto length = deserialize_field<size_t>(payload.get(), offset);
-        auto msg_payload = std::shared_ptr<char[]>(new char[length]);
-        if (length > 0) { std::memcpy(msg_payload.get(), payload.get() + offset, length); }
-
-        return TransportMessage(transport_type, sender, receiver, seq_number, payload, length);
     }
 
     // Create ACK
@@ -240,12 +242,16 @@ public:
     }
 
     // Getters
-    size_t get_seq_number() const { return seq_number; }
-    Host get_sender() const { return sender; }
-    Host get_receiver() const { return receiver; }
-    std::shared_ptr<char[]> get_payload() const { return payload; }
-    size_t get_length() const { return length; }
-    bool is_ack() const { return (transport_type == TransportMessage::Type::Ack); }
+    size_t get_seq_number() const { return this->seq_number; }
+    Host get_sender() const { return this->sender; }
+    Host get_receiver() const { return this->receiver; }
+    size_t get_length() const { return this->length; }
+    bool is_ack() const { return (this->transport_type == TransportMessage::Type::Ack); }
+    std::shared_ptr<char[]> get_payload() const {
+        auto copy = std::shared_ptr<char[]>(new char[length]);
+        std::memcpy(copy.get(), payload.get(), length);
+        return copy;
+    }
 
     std::string to_string() const {
         std::string result = "TransportMessage(";
