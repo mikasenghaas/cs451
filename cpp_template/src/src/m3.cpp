@@ -63,13 +63,13 @@ static void stop(int)
   exit(0);
 }
 
-static void laDecide(ProposalMessage pm) {
-  std::cout << "laDecide: " << pm << std::endl;
+static void laDecide(std::set<int> proposal) {
   std::string message;
-  for (auto value: pm.get_proposal()) {
+  for (auto value: proposal) {
       message += std::to_string(value) + " ";
   }
   message += "\n";
+  std::cout << "laDecide: " << message << std::endl;
   global_output_file->write(message);
 }
 
@@ -129,24 +129,12 @@ int main(int argc, char **argv) {
   LatticeAgreement la(local_host, hosts, laDecide);
   global_la = &la;
 
-  // ProposalMessage pm(0, 0, {1, 2, 3});
-  // std::cout << pm << std::endl;
-
-  // size_t length;
-  // auto payload = pm.serialize(length);
-  // TransportMessage tm(local_host, local_host, std::move(payload), length);
-  // std::cout << tm << std::endl;
-  // ProposalMessage pm2(tm.get_payload());
-  // std::cout << pm2 << std::endl;
-
   // Start proposing
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
   std::cout << "Proposing...\n\n";
 
-  if (local_host.get_id() == 1) {
-    for (auto proposal: config.get_proposals()) {
-      la.propose(proposal);
-    }
+  for (auto proposal: config.get_proposals()) {
+    la.propose(proposal);
   }
 
   // Infinite loop to keep the program running

@@ -29,10 +29,13 @@ public:
         hosts(hosts), pl(local_host, hosts, bebDeliver) {}
 
     void broadcast(Message &m) {
-        std::cout << "bebBroadcast: " << m << std::endl;
         for (auto host : this->hosts.get_hosts()) {
             this->pl.send(m, host);
         }
+    }
+
+    void send(Message &m, Host host) {
+        this->pl.send(m, host);
     }
 
     void shutdown() {

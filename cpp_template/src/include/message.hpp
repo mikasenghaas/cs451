@@ -71,15 +71,15 @@ public:
     enum class Type { Propose, Ack, Nack };
 private:
     Type proposal_type;
-    int round;
-    int proposal_number;
+    size_t round;
+    size_t proposal_number;
     std::set<int> proposal;
 
 public:
-    ProposalMessage(int round, int proposal_number, std::set<int> proposal) : 
-        Message(Message::Type::Proposal), round(round), proposal_number(proposal_number), proposal(proposal) {}
+    ProposalMessage(size_t round, size_t proposal_number, std::set<int> proposal) : 
+        Message(Message::Type::Proposal), proposal_type(ProposalMessage::Type::Propose), round(round), proposal_number(proposal_number), proposal(proposal) {}
 
-    ProposalMessage(ProposalMessage::Type proposal_type, int round, int proposal_number, std::set<int> proposal) :
+    ProposalMessage(ProposalMessage::Type proposal_type, size_t round, size_t proposal_number, std::set<int> proposal) :
         ProposalMessage(round, proposal_number, proposal) {
             this->proposal_type = proposal_type;
         }
@@ -87,8 +87,8 @@ public:
     ProposalMessage(std::shared_ptr<char[]> payload) : Message(Message::Type::Proposal) { 
         size_t offset = sizeof(Message::Type);
         this->proposal_type = deserialize_field<ProposalMessage::Type>(payload.get(), offset);
-        this->round = deserialize_field<int>(payload.get(), offset);
-        this->proposal_number = deserialize_field<int>(payload.get(), offset);
+        this->round = deserialize_field<size_t>(payload.get(), offset);
+        this->proposal_number = deserialize_field<size_t>(payload.get(), offset);
         size_t proposal_size = deserialize_field<size_t>(payload.get(), offset);
         this->proposal = std::set<int>();
         for (size_t i = 0; i < proposal_size; i++) {
@@ -100,7 +100,7 @@ public:
         return ProposalMessage(ProposalMessage::Type::Ack, p.round, p.proposal_number, p.proposal);
     }
     static ProposalMessage create_nack(ProposalMessage p, std::set<int> proposal) {
-        return ProposalMessage(ProposalMessage::Type::Nack, p.round, p.proposal_number+1, proposal);
+        return ProposalMessage(ProposalMessage::Type::Nack, p.round, p.proposal_number, proposal);
     }
 
     std::shared_ptr<char[]> serialize(size_t &length) {
@@ -122,9 +122,10 @@ public:
     size_t get_round() const { return this->round; }
     size_t get_proposal_number() const { return this->proposal_number; }
     std::set<int> get_proposal() const { return this->proposal; }
+    ProposalMessage::Type get_type() const { return this->proposal_type; }
 
     std::string to_string() const {
-        std::string result = "ProposalMessage(round=" + std::to_string(this->round) + ", proposal_number=" + std::to_string(this->proposal_number) + ", proposal={ ";
+        std::string result = "ProposalMessage(round=" + std::to_string(this->round) + ", proposal_number=" + std::to_string(this->proposal_number) + ", type=" + std::to_string(static_cast<int>(this->proposal_type)) + ", proposal={ ";
         for (const auto& value : this->proposal) {
             result += std::to_string(value) + " ";
         }
