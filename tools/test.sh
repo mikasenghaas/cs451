@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 # Validate input arguments
 if [ -z "$1" ]; then
     echo "Usage: $0 {perfect|fifo|agreement} ..."

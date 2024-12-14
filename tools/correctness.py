@@ -1,7 +1,7 @@
 import os
-import sys
 import argparse
-from typing import List
+from typing import List, Dict, Set
+from itertools import combinations
 
 def check_sender(outputs: List[str], id: int, n: int):
     all_outputs = set(outputs)
@@ -60,6 +60,22 @@ def check_fifo(outputs: List[str], num_hosts: int, host_id: int):
             last_seq = seq
 
     return True
+
+def check_agreement(proposals: Dict[int, List[Set]], decided: Dict[int, List[Set]]):
+    num_hosts = len(proposals)
+    num_rounds = len(proposals[1])
+
+    for round in range(num_rounds):
+        # Check validity
+        all_proposals = set().union(*[proposals[host_id][round] for host_id in range(1, num_hosts+1)])
+        for host in range(1, num_hosts+1):
+            assert proposals[host][round].issubset(decided[host][round]), f"[Host {host}] Proposal {proposals[host][round]} is not a subset of decided {decided[host][round]}"
+            assert decided[host][round].issubset(all_proposals), f"[Host {host}] Decided {decided[host][round]} is not a subset of all proposals {all_proposals}"
+
+        # Check consistency
+        for p1, p2 in combinations(range(1, num_hosts+1), 2):
+            assert decided[p1][round].issubset(decided[p2][round]) or decided[p2][round].issubset(decided[p1][round]), f"[Host {host}] Proposals {p1} and {p2} are not comparable"
+
 
 def main(args):
     log_dir = args.log_dir
@@ -142,7 +158,25 @@ def main(args):
         print("BEB validation passed ✅")
         print("FIFO validation passed ✅")
     elif args.command == "agreement":
-        print("Lattice agreement validation not yet implemented 🚧")
+        # Host file
+        with open(host_file, "r") as f:
+            num_hosts = len(f.readlines())
+
+        proposals = {}
+        for process_id in range(1, num_hosts + 1):
+            with open(os.path.join(log_dir, f"proc{process_id:02d}.config"), "r") as f:
+                f.readline()
+                proposals[process_id] = [set(map(int, line.strip().split())) for line in f.readlines()]
+
+        decided = {}
+        for process_id in range(1, num_hosts + 1):
+            with open(os.path.join(log_dir, f"proc{process_id:02d}.output"), "r") as f:
+                decided[process_id] = [set(map(int, line.strip().split())) for line in f.readlines()]
+
+        for process_id in range(1, num_hosts + 1):
+            check_agreement(proposals, decided)
+
+        print("Lattice agreement validation passed ✅")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
