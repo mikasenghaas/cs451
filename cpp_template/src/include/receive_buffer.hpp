@@ -84,3 +84,38 @@ public:
         return result;
     }
 };
+
+class LatticeReceiveBuffer {
+private:
+    std::map<size_t, std::set<int>> proposals;
+    size_t next_round;
+    std::mutex lock;
+
+    bool has_next_round(size_t round) {
+        return !this->proposals[round].empty();
+    }
+
+public:
+    LatticeReceiveBuffer(Hosts hosts) {
+        this->proposals = std::map<size_t, std::set<int>>();
+        this->next_round = 0;
+    }
+
+    std::vector<std::set<int>> deliver(ProposalMessage pm) {
+        this->lock.lock();
+
+        // Add proposal to buffer
+        this->proposals[pm.get_round()] = pm.get_proposal();
+        
+        // Collect all deliverable messages
+        std::vector<std::set<int>> result;
+        while (this->has_next_round(this->next_round)) {
+            std::set<int> proposal = this->proposals[this->next_round];
+            result.push_back(proposal);
+            this->next_round++;
+        }
+        
+        this->lock.unlock();
+        return result;
+    }
+};

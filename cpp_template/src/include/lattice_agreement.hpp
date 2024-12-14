@@ -4,6 +4,7 @@
 #include <map>
 
 #include "best_effort_broadcast.hpp"
+#include "receive_buffer.hpp"
 
 /** @brief Lattice Agreement (LA) using Best-Effort Broadcast (BEB) */
 class LatticeAgreement {
@@ -17,6 +18,8 @@ private:
     Hosts hosts;
     BestEffortBroadcast beb;
     std::function<void(std::set<int>)> decide;
+    LatticeReceiveBuffer receive_buffer;
+    size_t threshold;
 
     void bebDeliver(TransportMessage tm) {
         ProposalMessage pm(tm.get_payload());
@@ -49,13 +52,16 @@ private:
             }
         }
 
-        if (this->nack_count[round] > 0 && this->ack_count[round] + this->nack_count[round] >= this->hosts.get_host_count() && this->active[round]) {
+        if (this->active[round] && this->nack_count[round] > 0 && this->ack_count[round] + this->nack_count[round] >= this->threshold) {
             this->propose(round, this->active_proposal[round]);
         }
 
-        if (this->ack_count[round] >= this->hosts.get_host_count() && this->active[round]) {
-            this->decide(this->active_proposal[round]);
+        if (this->active[round] && this->ack_count[round] >= this->threshold) {
             this->active[round] = false;
+            std::vector<std::set<int>> proposals = this->receive_buffer.deliver(pm);
+            for (const auto& proposal: proposals) {
+                this->decide(proposal);
+            }
         }
     }
 
@@ -66,9 +72,12 @@ public:
         nack_count(std::map<size_t, size_t>()),
         active_proposal_number(std::map<size_t, size_t>()),
         active_proposal(std::map<size_t, std::set<int>>()),
-        accepted_proposal(std::map<size_t, std::set<int>>()), hosts(hosts),
+        accepted_proposal(std::map<size_t, std::set<int>>()),
+        hosts(hosts),
         beb(local_host, hosts, [this](TransportMessage tm) { this->bebDeliver(std::move(tm)); }),
-        decide(decide) {}
+        decide(decide),
+        receive_buffer(hosts),
+        threshold(hosts.get_host_count()) {}
 
     void propose(size_t round, std::set<int> proposal) {
         this->active[round] = true;
