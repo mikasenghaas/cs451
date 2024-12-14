@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
 
   // Load the config file
   PerfectLinkConfig config(parser.configPath());
-  std::cout << "\nLoaded config (p=" << config.get_message_count() << ", vs=" << config.get_receiver_id() << ")\n\n";
+  std::cout << "\nLoaded config (m=" << config.get_message_count() << ", p=" << config.get_receiver_id() << ")\n\n";
 
   // Setup local
   Host local_host(parser.id(), hosts.get_address(parser.id()));

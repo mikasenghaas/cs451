@@ -69,12 +69,17 @@ def check_agreement(proposals: Dict[int, List[Set]], decided: Dict[int, List[Set
         # Check validity
         all_proposals = set().union(*[proposals[host_id][round] for host_id in range(1, num_hosts+1)])
         for host in range(1, num_hosts+1):
-            assert proposals[host][round].issubset(decided[host][round]), f"[Host {host}] Proposal {proposals[host][round]} is not a subset of decided {decided[host][round]}"
-            assert decided[host][round].issubset(all_proposals), f"[Host {host}] Decided {decided[host][round]} is not a subset of all proposals {all_proposals}"
+            host_proposal, host_decided = proposals[host][round], decided[host][round]
+            msg = f"[Host {host}] Proposal {host_proposal} is not a subset of decided {host_decided}"
+            assert host_proposal.issubset(host_decided), msg
+            msg = f"[Host {host}] Decided {host_decided} is not a subset of all proposals {all_proposals}"
+            assert host_decided.issubset(all_proposals), msg
 
         # Check consistency
-        for p1, p2 in combinations(range(1, num_hosts+1), 2):
-            assert decided[p1][round].issubset(decided[p2][round]) or decided[p2][round].issubset(decided[p1][round]), f"[Host {host}] Proposals {p1} and {p2} are not comparable"
+        for host_id1, host_id2 in combinations(range(1, num_hosts+1), 2):
+            decided_host1, decided_host2 = decided[host_id1][round], decided[host_id2][round]
+            msg = f"[Round {round}] Decided {decided_host1} (Host {host_id1}) and {decided_host2} (Host {host_id2}) are not comparable"
+            assert decided_host1.issubset(decided_host2) or decided_host2.issubset(decided_host1), msg
 
 
 def main(args):
