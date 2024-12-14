@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
 
   // Load the config file
   LatticeAgreementConfig config(parser.configPath());
-  std::cout << "\nLoaded config (p=" << config.get_num_proposals() << ", vs=" << config.get_max_proposal_size() << ", ds=" << config.get_max_distinct_elements() << ")\n\n";
+  std::cout << "\nLoaded config (r=" << config.get_num_rounds() << ", vs=" << config.get_max_proposal_size() << ", ds=" << config.get_num_distinct_elements() << ")\n\n";
 
   auto proposals = config.get_proposals();
   for (uint i=0; i<proposals.size(); i++) {
@@ -133,8 +133,9 @@ int main(int argc, char **argv) {
   std::cout << "Timestamp: " << std::time(nullptr) * 1000 << "\n\n";
   std::cout << "Proposing...\n\n";
 
-  for (auto proposal: config.get_proposals()) {
-    la.propose(proposal);
+  for (size_t round=0; round<config.get_num_rounds(); round++) {
+    auto proposal = proposals.at(round);
+    la.propose(round, proposal);
   }
 
   // Infinite loop to keep the program running

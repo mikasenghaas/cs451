@@ -86,9 +86,9 @@ public:
 class LatticeAgreementConfig
 {
 private:
-    int num_proposals; // Proposal count
-    int max_proposal_size; // Maximum number of elements per proposal
-    int max_distinct_elements; // Maximum number of distinct elements
+    size_t num_rounds; // Number of rounds
+    size_t max_proposal_size; // Maximum number of elements per proposal
+    size_t num_distinct_elements; // Maximum number of distinct elements
     std::vector<std::set<int>> proposals; // List of proposal sets
 
 public:
@@ -101,14 +101,14 @@ public:
         }
         
         // Read config values
-        if (!(file >> num_proposals >> max_proposal_size >> max_distinct_elements)) {
+        if (!(file >> num_rounds >> max_proposal_size >> num_distinct_elements)) {
             throw std::runtime_error("Failed to read value from config file");
         }
 
         // Read proposals
         std::string line;
         std::getline(file, line);
-        for (int i=0; i<num_proposals; i++) {
+        for (size_t i=0; i<num_rounds; i++) {
             std::getline(file, line);
             std::set<int> proposal;
             std::istringstream iss(line);
@@ -120,8 +120,8 @@ public:
         }
     }
 
-    int get_num_proposals() { return num_proposals; }
-    int get_max_proposal_size() { return max_proposal_size; }
-    int get_max_distinct_elements() { return max_proposal_size; }
+    size_t get_num_rounds() { return num_rounds; }
+    size_t get_max_proposal_size() { return max_proposal_size; }
+    size_t get_num_distinct_elements() { return num_distinct_elements; }
     std::vector<std::set<int>> get_proposals() { return proposals; }
 };
