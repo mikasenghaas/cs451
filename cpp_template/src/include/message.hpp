@@ -106,7 +106,7 @@ public:
     }
 
     std::shared_ptr<char[]> serialize(size_t &length) {
-        length = sizeof(Message::Type) + sizeof(ProposalMessage::Type) + sizeof(round) + sizeof(proposal_number) + sizeof(proposal);
+        length = sizeof(Message::Type) + sizeof(ProposalMessage::Type) + sizeof(round) + sizeof(proposal_number) + sizeof(proposal) + sizeof(size_t) + sizeof(ProposalValue) * proposal.size();
 
         size_t offset = 0; auto payload = std::shared_ptr<char[]>(new char[length]);
         serialize_field(payload.get(), offset, message_type);
@@ -127,11 +127,23 @@ public:
     ProposalMessage::Type get_type() const { return this->proposal_type; }
 
     std::string to_string() const {
-        std::string result = "ProposalMessage(round=" + std::to_string(this->round) + ", proposal_number=" + std::to_string(this->proposal_number) + ", type=" + std::to_string(static_cast<int>(this->proposal_type)) + ", proposal={ ";
-        for (const auto& value : this->proposal) {
-            result += std::to_string(value) + " ";
+        std::string result = "ProposalMessage(";
+        std::string round_proposal_number = "round=" + std::to_string(round) + ", proposal_number=" + std::to_string(proposal_number);
+        if (this->proposal_type == ProposalMessage::Type::Ack) {
+            result += "ACK, " + round_proposal_number;
+        } else {
+            if (this->proposal_type == ProposalMessage::Type::Nack) {
+                result += "NACK, ";
+            } else {
+                result += "PROPOSE, ";
+            }
+            result += round_proposal_number + ", proposal={ ";
+            for (const auto& value : this->proposal) {
+                result += std::to_string(value) + " ";
+            }
+            result += "}";
         }
-        result += "})";
+        result += ")";
         return result;
     }
 };
