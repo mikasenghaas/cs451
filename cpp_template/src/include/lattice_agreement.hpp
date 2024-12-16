@@ -78,7 +78,7 @@ public:
         beb(local_host, hosts, [this](TransportMessage tm) { this->bebDeliver(std::move(tm)); }),
         decide(decide),
         receive_buffer(hosts),
-        threshold(hosts.get_host_count()) {}
+        threshold(static_cast<size_t>(hosts.get_host_count() / 2 + 1)) {}
 
     void propose(Round round, Proposal proposal) {
         this->active[round] = true;
