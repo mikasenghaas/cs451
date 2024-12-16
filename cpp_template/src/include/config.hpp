@@ -4,6 +4,8 @@
 #include <vector>
 #include <set>
 
+#include "types.hpp"
+
 /**
  * @brief Configuration class for Perfect Link
  *
@@ -89,7 +91,7 @@ private:
     size_t num_rounds; // Number of rounds
     size_t max_proposal_size; // Maximum number of elements per proposal
     size_t num_distinct_elements; // Maximum number of distinct elements
-    std::vector<std::set<int>> proposals; // List of proposal sets
+    std::vector<Proposal> proposals; // List of proposal sets
 
 public:
 
@@ -110,9 +112,9 @@ public:
         std::getline(file, line);
         for (size_t i=0; i<num_rounds; i++) {
             std::getline(file, line);
-            std::set<int> proposal;
+            Proposal proposal;
             std::istringstream iss(line);
-            int value;
+            ProposalValue value;
             while (iss >> value) {
                 proposal.insert(value);
             }
@@ -123,5 +125,5 @@ public:
     size_t get_num_rounds() { return num_rounds; }
     size_t get_max_proposal_size() { return max_proposal_size; }
     size_t get_num_distinct_elements() { return num_distinct_elements; }
-    std::vector<std::set<int>> get_proposals() { return proposals; }
+    std::vector<Proposal> get_proposals() { return proposals; }
 };

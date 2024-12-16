@@ -25,6 +25,7 @@
 #include <arpa/inet.h>
 
 // Project headers
+#include "types.hpp"
 #include "parser.hpp"
 #include "hosts.hpp"
 #include "config.hpp"
@@ -63,7 +64,7 @@ static void stop(int)
   exit(0);
 }
 
-static void laDecide(std::set<int> proposal) {
+static void laDecide(Proposal proposal) {
   std::string message;
   for (auto value: proposal) {
       message += std::to_string(value) + " ";

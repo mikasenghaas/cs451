@@ -5,6 +5,7 @@
 
 #include "best_effort_broadcast.hpp"
 #include "receive_buffer.hpp"
+#include "message.hpp"
 
 /** @brief Lattice Agreement (LA) using Best-Effort Broadcast (BEB) */
 class LatticeAgreement {
@@ -13,11 +14,11 @@ private:
     std::map<size_t, size_t> ack_count;
     std::map<size_t, size_t> nack_count;
     std::map<size_t, size_t> active_proposal_number;
-    std::map<size_t, std::set<int>> active_proposal;
-    std::map<size_t, std::set<int>> accepted_proposal;
+    std::map<size_t, Proposal> active_proposal;
+    std::map<size_t, Proposal> accepted_proposal;
     Hosts hosts;
     BestEffortBroadcast beb;
-    std::function<void(std::set<int>)> decide;
+    std::function<void(Proposal)> decide;
     LatticeReceiveBuffer receive_buffer;
     size_t threshold;
 
@@ -58,7 +59,7 @@ private:
 
         if (this->active[round] && this->ack_count[round] >= this->threshold) {
             this->active[round] = false;
-            std::vector<std::set<int>> proposals = this->receive_buffer.deliver(pm);
+            std::vector<Proposal> proposals = this->receive_buffer.deliver(pm);
             for (const auto& proposal: proposals) {
                 this->decide(proposal);
             }
@@ -66,20 +67,20 @@ private:
     }
 
 public:
-    LatticeAgreement(Host local_host, Hosts hosts, std::function<void(std::set<int>)> decide) :
-        active(std::map<size_t, bool>()),
-        ack_count(std::map<size_t, size_t>()),
-        nack_count(std::map<size_t, size_t>()),
-        active_proposal_number(std::map<size_t, size_t>()),
-        active_proposal(std::map<size_t, std::set<int>>()),
-        accepted_proposal(std::map<size_t, std::set<int>>()),
+    LatticeAgreement(Host local_host, Hosts hosts, std::function<void(Proposal)> decide) :
+        active(std::map<Round, bool>()),
+        ack_count(std::map<Round, size_t>()),
+        nack_count(std::map<Round, size_t>()),
+        active_proposal_number(std::map<Round, size_t>()),
+        active_proposal(std::map<size_t, Proposal>()),
+        accepted_proposal(std::map<size_t, Proposal>()),
         hosts(hosts),
         beb(local_host, hosts, [this](TransportMessage tm) { this->bebDeliver(std::move(tm)); }),
         decide(decide),
         receive_buffer(hosts),
         threshold(hosts.get_host_count()) {}
 
-    void propose(size_t round, std::set<int> proposal) {
+    void propose(Round round, Proposal proposal) {
         this->active[round] = true;
         this->ack_count[round] = 0;
         this->nack_count[round] = 0;
