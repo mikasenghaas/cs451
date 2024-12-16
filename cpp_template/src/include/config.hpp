@@ -88,6 +88,7 @@ public:
 class LatticeAgreementConfig
 {
 private:
+    std::ifstream file;
     size_t num_rounds; // Number of rounds
     size_t max_proposal_size; // Maximum number of elements per proposal
     size_t num_distinct_elements; // Maximum number of distinct elements
@@ -95,35 +96,34 @@ private:
 
 public:
 
-    LatticeAgreementConfig(const std::string &file_name)
+    LatticeAgreementConfig(const std::string &file_name): file(file_name)
     {
-        std::ifstream file(file_name);
-        if (!file.is_open()) {
-            throw std::runtime_error("Failed to open config file: " + file_name);
-        }
-        
         // Read config values
         if (!(file >> num_rounds >> max_proposal_size >> num_distinct_elements)) {
             throw std::runtime_error("Failed to read value from config file");
         }
 
-        // Read proposals
-        std::string line;
-        std::getline(file, line);
-        for (size_t i=0; i<num_rounds; i++) {
-            std::getline(file, line);
-            Proposal proposal;
-            std::istringstream iss(line);
-            ProposalValue value;
-            while (iss >> value) {
-                proposal.insert(value);
-            }
-            proposals.push_back(proposal);
-        }
+        // Trash rest of line
+        std::string trash;
+        std::getline(file, trash);
     }
 
     size_t get_num_rounds() { return num_rounds; }
     size_t get_max_proposal_size() { return max_proposal_size; }
     size_t get_num_distinct_elements() { return num_distinct_elements; }
-    std::vector<Proposal> get_proposals() { return proposals; }
+    Proposal get_next_proposal() {
+        // Get line
+        std::string line;
+        std::getline(file, line);
+
+        // Prepare proposal
+        Proposal proposal;
+        ProposalValue proposal_value;
+        std::istringstream iss(line);
+        ProposalValue value;
+        while (iss >> value) {
+            proposal.insert(value);
+        }
+        return proposal;
+    }
 };

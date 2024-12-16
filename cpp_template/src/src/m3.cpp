@@ -106,16 +106,6 @@ int main(int argc, char **argv) {
   LatticeAgreementConfig config(parser.configPath());
   std::cout << "\nLoaded config (r=" << config.get_num_rounds() << ", vs=" << config.get_max_proposal_size() << ", ds=" << config.get_num_distinct_elements() << ")\n\n";
 
-  auto proposals = config.get_proposals();
-  for (uint i=0; i<proposals.size(); i++) {
-    std::cout << "Proposal " << i+1 << ": { ";
-    for (auto value: proposals.at(i)) {
-      std::cout << value << " "; 
-    }
-    std::cout << "}\n";
-  }
-  std::cout << "\n";
-
   // Setup local address
   size_t local_id = static_cast<uint8_t>(parser.id());
   Host local_host(local_id, hosts.get_address(local_id));
@@ -135,7 +125,7 @@ int main(int argc, char **argv) {
   std::cout << "Proposing...\n\n";
 
   for (size_t round=0; round<config.get_num_rounds(); round++) {
-    auto proposal = proposals.at(round);
+    auto proposal = config.get_next_proposal();
     la.propose(round, proposal);
   }
 
