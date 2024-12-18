@@ -69,7 +69,11 @@ def check_agreement(proposals: Dict[int, List[Set]], decided: Dict[int, List[Set
         # Check validity
         all_proposals = set().union(*[proposals[host_id][round] for host_id in range(1, num_hosts+1)])
         for host in range(1, num_hosts+1):
-            host_proposal, host_decided = proposals[host][round], decided[host][round]
+            try:
+                host_proposal, host_decided = proposals[host][round], decided[host][round]
+            except:
+                msg = f"[Host {host}] Did not decide in round {round}"
+                assert False, msg
             msg = f"[Host {host}] Proposal {host_proposal} is not a subset of decided {host_decided}"
             assert host_proposal.issubset(host_decided), msg
             msg = f"[Host {host}] Decided {host_decided} is not a subset of all proposals {all_proposals}"

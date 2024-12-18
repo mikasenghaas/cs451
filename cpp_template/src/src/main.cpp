@@ -69,8 +69,8 @@ static void laDecide(Proposal proposal) {
   for (auto value: proposal) {
       message += std::to_string(value) + " ";
   }
-  message += "\n";
   std::cout << "laDecide: " << message << std::endl;
+  message += "\n";
   global_output_file->write(message);
 }
 
