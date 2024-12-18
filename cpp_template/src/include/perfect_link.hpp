@@ -88,6 +88,8 @@ public:
     host(host), hosts(hosts), link(host, hosts), acked_messages(hosts), delivered_messages(hosts) {
     this->receiving_thread = start_receiving(plDeliver);
     this->sending_thread = start_sending();
+    this->receiving_thread.detach();
+    this->sending_thread.detach();
   }
 
   void send(Message &m, Host receiver) {
