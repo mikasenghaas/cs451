@@ -23,12 +23,7 @@ private:
     LatticeReceiveBuffer receive_buffer;
     size_t threshold;
     // Limit sending pace
-    Round last_decided = 0;
-    const size_t SEND_QUEUE_SIZE = 200;
-    std::condition_variable cv;
     std::mutex lock;
-    std::mutex cv_mutex;
-    bool stop_sending = false;
 
     void bebDeliver(TransportMessage tm) {
         ProposalMessage pm(tm.get_payload());
@@ -68,16 +63,9 @@ private:
         if (this->active[round] && this->ack_count[round] >= this->threshold) {
             this->active[round] = false;
             std::vector<Proposal> proposals = this->receive_buffer.deliver(pm);
-            auto decided = 0;
             for (const auto& proposal: proposals) {
                 this->decide(proposal);
-                decided++;
             }
-            {
-                std::unique_lock<std::mutex> cv_lock(this->cv_mutex);
-                this->last_decided += decided;
-            }
-            this->cv.notify_all();
         }
     }
 
@@ -93,18 +81,9 @@ public:
         beb(local_host, hosts, [this](TransportMessage tm) { this->bebDeliver(std::move(tm)); }),
         decide(decide),
         receive_buffer(hosts),
-        threshold(static_cast<size_t>(hosts.get_host_count())) {}
+        threshold(static_cast<size_t>(hosts.get_host_count() / 2 + 1)) {}
 
     void propose(Round round, Proposal proposal) {
-        {
-            std::unique_lock<std::mutex> lock(this->cv_mutex);
-            while (round - this->last_decided > this->SEND_QUEUE_SIZE) {
-                this->cv.wait(lock);
-                if (this->stop_sending) { return; }
-            }
-        }
-        if (this->stop_sending) { return; }
-
         this->lock.lock();
         this->active[round] = true;
         this->ack_count[round] = 0;
@@ -119,11 +98,6 @@ public:
     }
 
     void shutdown() {
-        {
-            std::unique_lock<std::mutex> cv_lock(this->cv_mutex);
-            this->stop_sending = true;
-        }
-        this->cv.notify_all();
         this->beb.shutdown();
     }
 
